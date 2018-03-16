@@ -19,17 +19,19 @@ xy = [(p.x, p.y) for p in targets['geometry']]
 # rfr.fit(X=X, y=targets['K_ppm_imp_'])
 # print(rfr.score(X=X, y=targets['K_ppm_imp_']))
 
+
 def _join_dicts(dicts):
     if dicts is None:
         return
     d = {k: v for D in dicts for k, v in D.items()}
-    return d
+    return OrderedDict(sorted(d.items()))
 
 
-def gather_covairates(xy, covaraites):
-    pass
-
-
+def gather_covariates(xy, covariates):
+    p_covaraites = mpiops.array_split(covariates, mpiops.rank)
+    p_features = process_gather_covariates(xy, p_covaraites)
+    features = _join_dicts(mpiops.comm.allgather(p_features))
+    return features
 
 
 def process_gather_covariates(xy, covariates):
@@ -41,9 +43,6 @@ def process_gather_covariates(xy, covariates):
 
 
 features = gather_covariates(xy, covariates)
-
-
-features = OrderedDict(sorted(features.items()))
 
 X = np.hstack([v for v in features.values()])
 
