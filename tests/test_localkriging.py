@@ -7,7 +7,7 @@ import pytest
 
 from click.testing import CliRunner
 
-from localkriging import localkriging
+from localkriging import kriging
 from localkriging import cli
 
 
