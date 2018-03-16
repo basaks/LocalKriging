@@ -14,8 +14,9 @@ with open('HISTORY.rst') as history_file:
 requirements = ['Click>=6.0',
                 'scipy>=1.0.0',
                 'rasterio>=0.36.0',
-                'geopandas>=0.2.1'
-                'PyKrige>=1.3.2']
+                'geopandas>=0.2.1',
+                'scikit-learn>=0.19.1'
+                ]
 
 setup_requirements = ['pytest-runner', ]
 
@@ -41,6 +42,24 @@ setup(
         'console_scripts': [
             'localkriging=localkriging.cli:main',
         ],
+    },
+    extras_require={
+        'dev': [
+            'sphinx',
+            'ghp-import',
+            'sphinxcontrib-programoutput',
+            'pytest-cov',
+            'coverage == 4.4.1',
+            'codecov == 2.0.9',
+            'tox',
+            'pytest >= 3.1.0',
+            'pytest-lazy-fixture >= 0.4.0',
+            'pytest-flake8 >= 0.8.1',
+            'pytest-mock >= 1.6.0',
+            'pytest-cov == 2.5.1',
+            'pytest-regtest >= 0.15.1',
+            'flake8-docstrings >= 1.1.0',
+        ]
     },
     install_requires=requirements,
     license="Apache Software License 2.0",
