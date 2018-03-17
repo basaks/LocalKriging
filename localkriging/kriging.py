@@ -28,13 +28,43 @@ def _join_dicts(dicts):
 
 
 def gather_covariates(xy, covariates):
+    """
+    Gather covariates using MPI.
+
+    xy: tuple
+        (x, y) of points for which  covariate values are required
+    covariates: list
+        list of covariates to be intersected
+
+    Returns
+    -------
+    features: dict
+        dict of features names and interested values as numpy array
+
+    """
+
     p_covaraites = mpiops.array_split(covariates, mpiops.rank)
-    p_features = process_gather_covariates(xy, p_covaraites)
+    p_features = _process_gather_covariates(xy, p_covaraites)
     features = _join_dicts(mpiops.comm.allgather(p_features))
     return features
 
 
-def process_gather_covariates(xy, covariates):
+def _process_gather_covariates(xy, covariates):
+    """
+    Parameters
+    ----------
+    xy: tuple
+        (x, y) of points for which  covariate values are required
+    covariates: list
+        list of covariates to be intersected by this process
+
+    Returns
+    -------
+    features: dict
+        dict of features names and interested values as numpy array
+
+    """
+    # TODO: break this up in partitions for very large rasters
     features = {}
     for c in covariates:
         src = rio.open(c)
@@ -45,4 +75,3 @@ def process_gather_covariates(xy, covariates):
 features = gather_covariates(xy, covariates)
 
 X = np.hstack([v for v in features.values()])
-
