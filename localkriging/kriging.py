@@ -5,9 +5,8 @@ from os.path import basename, splitext
 from collections import OrderedDict
 import numpy as np
 import rasterio as rio
-from sklearn.ensemble import RandomForestRegressor
 from geopandas import read_file
-from configs.config import shapefile, covariates
+from configs.config import shapefile, covariates, regression_model, target
 from localkriging import mpiops
 
 targets = read_file(shapefile)
@@ -75,3 +74,10 @@ def _process_gather_covariates(xy, covariates):
 features = gather_covariates(xy, covariates)
 
 X = np.hstack([v for v in features.values()])
+
+regression_pred = regression_model.fit(X, y=targets[target])
+residuals = regression_pred - targets[target]
+
+# implement local kriging on residuals
+
+

@@ -1,4 +1,7 @@
+from sklearn.ensemble import RandomForestRegressor
+
 shapefile = '/home/sudipta/Documents/GA-cover2/geochem_sites.shp'
+target = 'K_ppm_imp_'
 
 covariates = [
     '/home/sudipta/Documents/GA-cover2/LATITUDE_GRID1.tif',
@@ -13,3 +16,29 @@ covariates = [
     '/home/sudipta/Documents/GA-cover2/MvrtpLL.tif',
     '/home/sudipta/Documents/GA-cover2/outcrop_dis2.tif',
 ]
+
+
+regression_model = RandomForestRegressor()
+
+
+# kriging parameters
+
+# number of points used in local kriging
+num_points = 10
+
+# should be ordinary or universal
+kriging_method = 'ordinary'
+
+
+# some checks
+def _check_kriging_method():
+    if kriging_method not in ['ordinary', 'universal']:
+        raise ValueError('kriging method must be ordinary or universal')
+
+
+def _check_covariates_not_repeated():
+    pass
+
+_check_kriging_method()
+_check_covariates_not_repeated()
+
