@@ -86,17 +86,31 @@ residuals = regression.predict(X) - targets[target]
 def predict(covariates, step=10):
     ds = rio.open(covariates[0])
     feats = {}
-    for r in range(0, ds.height, step):  # 10 rows at a time
-        for c in covariates:
-            with rio.open(c) as src:
-                # Window(col_off, row_off, width, height)
-                # assume band one for now
-                w = src.read(1, window=Window(0, r, src.width, step))
-                feats[splitext(basename(c))[0]] = w.flatten()
+    profile = ds.profile
 
-        feats = OrderedDict(sorted(feats.items()))
-        X = np.vstack([v for v in feats.values()]).T
-        pred = regression.predict(X)
+    # assume 1 band rasters
+    profile.update(dtype=rio.float32, count=1, compress='lzw')
+
+    with rio.open('out.tif', 'w', **profile) as dst:
+
+        for r in range(0, ds.height, step):  # 10 rows at a time
+            step = min(step, ds.height - r)
+            print(r, step)
+            for c in covariates:
+                with rio.open(c) as src:
+                    # Window(col_off, row_off, width, height)
+                    # assume band one for now
+                    w = src.read(1, window=Window(0, r, src.width, step))
+                    feats[splitext(basename(c))[0]] = w.flatten()
+
+            feats = OrderedDict(sorted(feats.items()))
+            X = np.vstack([v for v in feats.values()]).T
+            pred = regression.predict(X).reshape(step, ds.width)
+
+            dst.write(pred.astype(rio.float32),
+                      window=Window(0, r, ds.width, step),
+                      indexes=1)
+            print('wrote {} rows'.format(step))
 
 
 # implement local kriging on residuals
