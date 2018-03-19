@@ -96,28 +96,31 @@ residuals = chem - regression.predict(X)
 tree = cKDTree(xy)
 
 
-def predict(covariates, step=10):
-    ds = rio.open(covariates[0])
+ds = rio.open(covariates[0])
+profile = ds.profile
+
+# assume 1 band rasters
+profile.update(dtype=rio.float32, count=1, compress='lzw')
+writer = RasterWriter(output_tif='local_reg_kriged.tif', profile=profile)
+
+
+def predict(covariates):
+
     feats = {}
-    profile = ds.profile
+    process_rows = mpiops.array_split(range(ds.height))
 
-    # assume 1 band rasters
-    profile.update(dtype=rio.float32, count=1, compress='lzw')
-    writer = RasterWriter(output_tif='local_reg_kriged.tif', profile=profile)
-
-    for r in range(0, ds.height, step):  # 10 rows at a time
-        step = min(step, ds.height - r)
-        print(r, step)
+    for r in process_rows:
         for c in covariates:
             with rio.open(c) as src:
                 # Window(col_off, row_off, width, height)
                 # assume band one for now
-                w = src.read(1, window=Window(0, r, src.width, step))
+                w = src.read(1, window=Window(0, r, src.width, 1))
                 feats[splitext(basename(c))[0]] = w.flatten()
 
         feats = OrderedDict(sorted(feats.items()))
         X = np.vstack([v for v in feats.values()]).T
-        pred = regression.predict(X).reshape(step, ds.width)  # regression
+        print('processed row {} using process {}'.format(r, mpiops.rank))
+        pred = regression.predict(X).reshape(1, ds.width)  # regression
 
         # this is the local residual kriging step
         # for rr in range(step):
@@ -135,9 +138,10 @@ def predict(covariates, step=10):
         #         res, res_std = krige_class.execute('points', [lat], [lon])
         #         pred[rr, cc] += res  # local kriged residual correction
 
-        writer.write(pred.astype(rio.float32),
-                     window=Window(0, r, ds.width, step))
-        print('wrote {} rows'.format(step))
+        writer.write({'data': pred.astype(rio.float32),
+                     'window': (0, r, ds.width, 1)})
+
+        print('wrote {} rows'.format(1))
 
 
 predict(covariates)
