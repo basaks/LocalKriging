@@ -10,7 +10,7 @@ from rasterio.windows import Window
 from geopandas import read_file
 from pykrige import OrdinaryKriging, UniversalKriging
 from configs.config import shapefile, covariates, regression_model, \
-    target, num_points, kriging_method
+    target, num_points, kriging_method, variogram_model
 from localkriging import mpiops
 from localkriging.writer import RasterWriter
 
@@ -25,11 +25,6 @@ xy = [(p.x, p.y) for p in targets['geometry']]
 x = [p.x for p in targets['geometry']]
 y = [p.y for p in targets['geometry']]
 chem = targets[target]
-
-# rfr = RandomForestRegressor()
-# X = np.hstack([lons, lats])
-# rfr.fit(X=X, y=targets['K_ppm_imp_'])
-# print(rfr.score(X=X, y=targets['K_ppm_imp_']))
 
 
 def _join_dicts(dicts):
@@ -92,6 +87,8 @@ features = gather_covariates(xy, covariates)
 X = np.hstack([v for v in features.values()])
 
 regression = regression_model.fit(X, y=targets[target])
+
+
 residuals = chem - regression.predict(X)
 tree = cKDTree(xy)
 
@@ -134,7 +131,7 @@ def predict(covariates):
         #         ys = [y[i] for i in ii]
         #         zs = [residuals[i] for i in ii]  # residuals
         #
-        #         krige_class = kriging(xs, ys, zs)
+        #         krige_class = kriging(xs, ys, zs, variogram_model)
         #         res, res_std = krige_class.execute('points', [lat], [lon])
         #         pred[rr, cc] += res  # local kriged residual correction
 

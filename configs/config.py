@@ -3,6 +3,7 @@ from sklearn.ensemble import RandomForestRegressor
 shapefile = '/home/sudipta/Documents/GA-cover2/geochem_sites.shp'
 target = 'K_ppm_imp_'
 
+# TODO: support inputs based on a list in a file
 covariates = [
     '/home/sudipta/Documents/GA-cover2/LATITUDE_GRID1.tif',
     '/home/sudipta/Documents/GA-cover2/LONGITUDE_GRID1.tif',
@@ -31,6 +32,10 @@ num_points = 5
 
 # should be ordinary or universal
 kriging_method = 'ordinary'
+
+# variogram options are (linear, power, gaussian, spherical, exponential,
+# hole-effect)
+variogram_model = 'linear'
 
 
 # some checks
