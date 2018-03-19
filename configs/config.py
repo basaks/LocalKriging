@@ -18,13 +18,16 @@ covariates = [
 ]
 
 
+lat = '/home/sudipta/Documents/GA-cover2/LATITUDE_GRID1.tif'
+lon = '/home/sudipta/Documents/GA-cover2/LONGITUDE_GRID1.tif'
+
 regression_model = RandomForestRegressor()
 
 
 # kriging parameters
 
 # number of points used in local kriging
-num_points = 10
+num_points = 5
 
 # should be ordinary or universal
 kriging_method = 'ordinary'
