@@ -5,6 +5,7 @@ from os.path import basename, splitext
 from collections import OrderedDict
 import numpy as np
 import rasterio as rio
+from rasterio.windows import Window
 from geopandas import read_file
 from configs.config import shapefile, covariates, regression_model, target
 from localkriging import mpiops
@@ -30,8 +31,10 @@ def gather_covariates(xy, covariates):
     """
     Gather covariates using MPI.
 
-    xy: tuple
-        (x, y) of points for which  covariate values are required
+    Parameters
+    ----------
+    xy: list
+        list of (x, y) points for which  covariate values are required
     covariates: list
         list of covariates to be intersected
 
@@ -52,8 +55,8 @@ def _process_gather_covariates(xy, covariates):
     """
     Parameters
     ----------
-    xy: tuple
-        (x, y) of points for which  covariate values are required
+    xy: list
+        list of (x, y) points for which  covariate values are required
     covariates: list
         list of covariates to be intersected by this process
 
@@ -68,6 +71,7 @@ def _process_gather_covariates(xy, covariates):
     for c in covariates:
         src = rio.open(c)
         features[splitext(basename(c))[0]] = np.array(list(src.sample(xy)))
+        src.close()
     return features
 
 
@@ -75,9 +79,26 @@ features = gather_covariates(xy, covariates)
 
 X = np.hstack([v for v in features.values()])
 
-regression_pred = regression_model.fit(X, y=targets[target])
-residuals = regression_pred - targets[target]
+regression = regression_model.fit(X, y=targets[target])
+residuals = regression.predict(X) - targets[target]
+
+
+def predict(covariates, step=10):
+    ds = rio.open(covariates[0])
+    feats = {}
+    for r in range(0, ds.height, step):  # 10 rows at a time
+        for c in covariates:
+            with rio.open(c) as src:
+                # Window(col_off, row_off, width, height)
+                # assume band one for now
+                w = src.read(1, window=Window(0, r, src.width, step))
+                feats[splitext(basename(c))[0]] = w.flatten()
+
+        feats = OrderedDict(sorted(feats.items()))
+        X = np.vstack([v for v in feats.values()]).T
+        pred = regression.predict(X)
+
 
 # implement local kriging on residuals
 
-
+predict(covariates)
