@@ -11,13 +11,12 @@ class RasterWriter:
         :param profile: rio.profile.Profile instance
         """
         self.output = output_tif
+        self.profile = profile
+        self.dst = rio.open(self.output, 'w', **self.profile)
 
-    def write(self, data, window):
+    def write(self, data, window, indexes=1):
         if mpiops.rank == 0:
-            with open(self.output, 'w') as dst:
-                pass
+            print('writing in ', window)
+            self.dst.write(data, window=window, indexes=indexes)
         else:
             mpiops.comm.send(data, dest=0)
-
-
-

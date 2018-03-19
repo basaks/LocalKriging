@@ -12,6 +12,7 @@ from pykrige import OrdinaryKriging, UniversalKriging
 from configs.config import shapefile, covariates, regression_model, \
     target, num_points, kriging_method
 from localkriging import mpiops
+from localkriging.writer import RasterWriter
 
 
 krige_methods = {'ordinary': OrdinaryKriging,
@@ -102,43 +103,41 @@ def predict(covariates, step=10):
 
     # assume 1 band rasters
     profile.update(dtype=rio.float32, count=1, compress='lzw')
+    writer = RasterWriter(output_tif='local_reg_kriged.tif', profile=profile)
 
-    with rio.open('out.tif', 'w', **profile) as dst:
+    for r in range(0, ds.height, step):  # 10 rows at a time
+        step = min(step, ds.height - r)
+        print(r, step)
+        for c in covariates:
+            with rio.open(c) as src:
+                # Window(col_off, row_off, width, height)
+                # assume band one for now
+                w = src.read(1, window=Window(0, r, src.width, step))
+                feats[splitext(basename(c))[0]] = w.flatten()
 
-        for r in range(0, ds.height, step):  # 10 rows at a time
-            step = min(step, ds.height - r)
-            print(r, step)
-            for c in covariates:
-                with rio.open(c) as src:
-                    # Window(col_off, row_off, width, height)
-                    # assume band one for now
-                    w = src.read(1, window=Window(0, r, src.width, step))
-                    feats[splitext(basename(c))[0]] = w.flatten()
+        feats = OrderedDict(sorted(feats.items()))
+        X = np.vstack([v for v in feats.values()]).T
+        pred = regression.predict(X).reshape(step, ds.width)  # regression
 
-            feats = OrderedDict(sorted(feats.items()))
-            X = np.vstack([v for v in feats.values()]).T
-            pred = regression.predict(X).reshape(step, ds.width)  # regression
+        # this is the local residual kriging step
+        # for rr in range(step):
+        #     print(rr, r + rr)
+        #     for cc in range(ds.width):
+        #         lat, lon = ds.xy(r + rr, cc)
+        #         # print(lat, lon)
+        #         d, ii = tree.query([lat, lon], num_points)
+        #         # points = [xy[i] for i in ii]
+        #         xs = [x[i] for i in ii]
+        #         ys = [y[i] for i in ii]
+        #         zs = [residuals[i] for i in ii]  # residuals
+        #
+        #         krige_class = kriging(xs, ys, zs)
+        #         res, res_std = krige_class.execute('points', [lat], [lon])
+        #         pred[rr, cc] += res  # local kriged residual correction
 
-            for rr in range(step):
-                print(rr, r + rr)
-                for cc in range(ds.width):
-                    lat, lon = ds.xy(r + rr, cc)
-                    # print(lat, lon)
-                    d, ii = tree.query([lat, lon], num_points)
-                    # points = [xy[i] for i in ii]
-                    xs = [x[i] for i in ii]
-                    ys = [y[i] for i in ii]
-                    zs = [residuals[i] for i in ii]  # residuals
-
-                    krige_class = kriging(xs, ys, zs)
-                    res, res_std = krige_class.execute('points', [lat], [lon])
-                    pred[rr, cc] += res  # local kriged residual correction
-
-
-            dst.write(pred.astype(rio.float32),
-                      window=Window(0, r, ds.width, step),
-                      indexes=1)
-            print('wrote {} rows'.format(step))
+        writer.write(pred.astype(rio.float32),
+                     window=Window(0, r, ds.width, step))
+        print('wrote {} rows'.format(step))
 
 
 predict(covariates)
