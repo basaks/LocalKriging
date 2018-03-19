@@ -141,7 +141,5 @@ def predict(covariates):
         writer.write({'data': pred.astype(rio.float32),
                      'window': (0, r, ds.width, 1)})
 
-        print('wrote {} rows'.format(1))
-
 
 predict(covariates)
