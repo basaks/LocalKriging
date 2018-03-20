@@ -69,10 +69,15 @@ def main(config_file, output_file):
     return 0
 
 
-def predict(ds, config, writer, model):
+def predict(ds, config, writer, model, step=10):
     feats = {}
     covariates = config.covariates
     process_rows = mpiops.array_split(range(ds.height))
+
+    dummy_rows = 0
+    max_process_rows = ds.height // mpiops.size + 1
+    if ds.height % mpiops.size:
+        dummy_rows = max_process_rows - len(process_rows)
 
     for r in process_rows:
         for c in covariates:
@@ -90,12 +95,15 @@ def predict(ds, config, writer, model):
         # this is the local residual kriging step
         for cc in range(ds.width):
             lat, lon = ds.xy(r, cc)
-            print(np.atleast_2d(X[cc, :]))
             pred[0, cc] = model.predict(np.atleast_2d(X[cc, :]),
                                         lat, lon)
 
         writer.write({'data': pred.astype(rio.float32),
                       'window': (0, r, ds.width, 1)})
+
+    for _ in range(dummy_rows):
+        writer.write({'data': None,
+                      'window': None})
 
 
 if __name__ == "__main__":

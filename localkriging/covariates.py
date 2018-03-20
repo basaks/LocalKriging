@@ -58,6 +58,3 @@ def _process_gather_covariates(xy, covariates):
         features[splitext(basename(c))[0]] = np.array(list(src.sample(xy)))
         src.close()
     return features
-
-
-

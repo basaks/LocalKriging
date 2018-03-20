@@ -57,15 +57,16 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
             raise Exception('Not trained. Train first')
 
         reg_pred = self.regression.predict(x)
-        d, ii = self.tree.query([lat, lon], self.num_points)
+        return reg_pred
+        # TODO: return std for regression models that support std
 
+        return self._krige_locally(lat, lon, reg_pred)
+
+    def _krige_locally(self, lat, lon, reg_pred):
+        d, ii = self.tree.query([lat, lon], self.num_points)
         xs = [self.xy[i][0] for i in ii]
         ys = [self.xy[i][1] for i in ii]
         zs = [self.residual[i] for i in ii]
         krige_class = self.kriging_model(xs, ys, zs, self.variogram_model)
         res, res_std = krige_class.execute('points', [lat], [lon])
-        reg_pred += res  # local kriged residual correction
-
-        # TODO: return std for regression models that support std
-
-        return reg_pred
+        return reg_pred + res  # local kriged residual correction

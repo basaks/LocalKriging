@@ -22,8 +22,10 @@ class RasterWriter:
             for r in range(mpiops.size):
                 data_win_dict = mpiops.comm.recv(source=r) \
                     if r != 0 else data_win_dict
-                data = data_win_dict['data'].astype(rio.float32)
-                window = Window(*data_win_dict['window'])
-                self.dst.write(data, window=window, indexes=1)
+                data = data_win_dict['data']
+                if data is not None:
+                    window = Window(*data_win_dict['window'])
+                    self.dst.write(data.astype(rio.float32),
+                                   window=window, indexes=1)
         else:
             mpiops.comm.send(data_win_dict, dest=0)
