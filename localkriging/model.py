@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.spatial import cKDTree
-from sklearn.base import RegressorMixin, BaseEstimator
 from pykrige import OrdinaryKriging, UniversalKriging
+from sklearn.base import RegressorMixin, BaseEstimator
 
 krige_methods = {'ordinary': OrdinaryKriging,
                  'universal': UniversalKriging}
@@ -14,9 +14,22 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
                  kriging_model,
                  variogram_model,
                  num_points):
+        """
+        Parameters
+        ----------
+        xy: list
+            list of (x, y) points for which  covariate values are required
+        regression_model: sklearn compatible regression class
+        kriging_model: str
+            should be 'ordinary' or 'universal'
+        variogram_model: str
+            pykrige compatible variogram model
+        num_points: int
+            number of points for the local kriging
+        """
         self.xy = xy
         self.regression = regression_model
-        self.kriging_model = kriging_model
+        self.kriging_model = krige_methods[kriging_model]
         self.variogram_model = variogram_model
         self.num_points = num_points
         self.trained = False
@@ -30,10 +43,15 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
 
     def predict(self, x, lat, lon, *args, **kwargs):
         """
-        :param x:
-        :param lat:
-        :param lon:
-        :return:
+        Parameters
+        ----------
+        x: np.array
+            features of the regression model
+        lat: float
+            latitude
+        lon: float
+            longitude
+
         """
         if not self.trained:
             raise Exception('Not trained. Train first')
@@ -47,5 +65,7 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         krige_class = self.kriging_model(xs, ys, zs, self.variogram_model)
         res, res_std = krige_class.execute('points', [lat], [lon])
         reg_pred += res  # local kriged residual correction
+
+        # TODO: return std for regression models that support std
 
         return reg_pred

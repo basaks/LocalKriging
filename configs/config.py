@@ -19,9 +19,6 @@ covariates = [
 ]
 
 
-lat = '/home/sudipta/Documents/GA-cover2/LATITUDE_GRID1.tif'
-lon = '/home/sudipta/Documents/GA-cover2/LONGITUDE_GRID1.tif'
-
 regression_model = RandomForestRegressor()
 
 
