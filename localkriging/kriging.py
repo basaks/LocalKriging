@@ -120,20 +120,18 @@ def predict(covariates):
         pred = regression.predict(X).reshape(1, ds.width)  # regression
 
         # this is the local residual kriging step
-        # for rr in range(step):
-        #     print(rr, r + rr)
-        #     for cc in range(ds.width):
-        #         lat, lon = ds.xy(r + rr, cc)
-        #         # print(lat, lon)
-        #         d, ii = tree.query([lat, lon], num_points)
-        #         # points = [xy[i] for i in ii]
-        #         xs = [x[i] for i in ii]
-        #         ys = [y[i] for i in ii]
-        #         zs = [residuals[i] for i in ii]  # residuals
-        #
-        #         krige_class = kriging(xs, ys, zs, variogram_model)
-        #         res, res_std = krige_class.execute('points', [lat], [lon])
-        #         pred[rr, cc] += res  # local kriged residual correction
+        for cc in range(ds.width):
+            lat, lon = ds.xy(r, cc)
+            # print(lat, lon)
+            d, ii = tree.query([lat, lon], num_points)
+            # points = [xy[i] for i in ii]
+            xs = [x[i] for i in ii]
+            ys = [y[i] for i in ii]
+            zs = [residuals[i] for i in ii]  # residuals
+
+            krige_class = kriging(xs, ys, zs, variogram_model)
+            res, res_std = krige_class.execute('points', [lat], [lon])
+            pred[0, cc] += res  # local kriged residual correction
 
         writer.write({'data': pred.astype(rio.float32),
                      'window': (0, r, ds.width, 1)})
