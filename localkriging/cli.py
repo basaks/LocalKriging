@@ -43,11 +43,15 @@ def main(config_file, output_file):
         num_points=config.num_points
     )
 
-    # interset covariates
+    # intersect covariates
     features = gather_covariates(xy, config.covariates)
 
     # stack for learning
-    X = np.hstack([v for v in features.values()])
+    X = np.ma.hstack([v for v in features.values()])
+
+    # ignore all rows with missing data
+    # TODO: remove when we have imputation working
+    X = X[X.mask.sum(axis=1) == 0]   # remove any rows with anything masked
 
     model.fit(X, y=targets)
 
@@ -57,7 +61,7 @@ def main(config_file, output_file):
     # rasterio profile object
     profile = ds.profile
     # assume 1 band rasters
-    profile.update(dtype=rio.float32, count=1, compress='lzw')
+    profile.update(dtype=rio.float32, count=1, compress='lzw', nodata=1.0e-20)
 
     # mpi compatible writer class instance
     writer = RasterWriter(output_tif=output_file,
@@ -74,6 +78,7 @@ def predict(ds, config, writer, model, step=10):
     covariates = config.covariates
     process_rows = mpiops.array_split(range(ds.height))
 
+    # create dummy rows for MPI raster write compatibility
     dummy_rows = 0
     max_process_rows = ds.height // mpiops.size + 1
     if ds.height % mpiops.size:

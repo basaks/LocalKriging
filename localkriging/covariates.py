@@ -2,6 +2,7 @@ from os.path import basename, splitext
 from collections import OrderedDict
 import numpy as np
 import rasterio as rio
+from rasterio.windows import Window
 from localkriging import mpiops
 
 
@@ -55,6 +56,25 @@ def _process_gather_covariates(xy, covariates):
     features = {}
     for c in covariates:
         src = rio.open(c)
-        features[splitext(basename(c))[0]] = np.array(list(src.sample(xy)))
+        features[splitext(basename(c))[0]] = np.ma.array(
+            list(sample_gen(src, xy)))
         src.close()
     return features
+
+
+def sample_gen(dataset, xy, indexes=None):
+    """"
+    Inspired from
+    https://mapbox.github.io/rasterio/_modules/rasterio/sample.html#sample_gen
+    Generator for sampled pixels"""
+    index = dataset.index
+    read = dataset.read
+
+    if isinstance(indexes, int):
+        indexes = [indexes]
+
+    for x, y in xy:
+        row_off, col_off = index(x, y)
+        window = Window(col_off, row_off, 1, 1)
+        data = read(indexes, window=window, masked=True, boundless=True)
+        yield data[:, 0, 0]
