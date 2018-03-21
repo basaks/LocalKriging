@@ -79,6 +79,7 @@ def predict(ds, config, writer, model, step=10):
     if ds.height % mpiops.size:
         dummy_rows = max_process_rows - len(process_rows)
 
+    # TODO: compute in `step`s for faster (at least) regression prediction
     for r in process_rows:
         for c in covariates:
             with rio.open(c) as src:

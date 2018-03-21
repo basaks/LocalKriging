@@ -2,6 +2,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 from pykrige import OrdinaryKriging, UniversalKriging
 from sklearn.base import RegressorMixin, BaseEstimator
+from sklearn.metrics import r2_score
 
 krige_methods = {'ordinary': OrdinaryKriging,
                  'universal': UniversalKriging}
@@ -36,27 +37,27 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         self.residual = np.zeros_like(self.xy)
         self.tree = cKDTree(self.xy)
 
-    def fit(self, x, y, *args, **kwargs):
-        self.regression.fit(x, y)
-        self.residual = y - self.regression.predict(x)
+    def fit(self, X, y, *args, **kwargs):
+        self.regression.fit(X, y)
+        self.residual = y - self.regression.predict(X)
         self.trained = True
 
-    def predict(self, x, lat, lon, *args, **kwargs):
+    def predict(self, X, lat, lon, *args, **kwargs):
         """
         Parameters
         ----------
-        x: np.array
+        X: np.array
             features of the regression model
-        lat: float
-            latitude
-        lon: float
-            longitude
+        lat: np.array
+            latitude np.array
+        lon: np.array
+            longitude np.array
 
         """
         if not self.trained:
             raise Exception('Not trained. Train first')
 
-        reg_pred = self.regression.predict(x)
+        reg_pred = self.regression.predict(X)
         return reg_pred
         # TODO: return std for regression models that support std
 
@@ -70,3 +71,7 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         krige_class = self.kriging_model(xs, ys, zs, self.variogram_model)
         res, res_std = krige_class.execute('points', [lat], [lon])
         return reg_pred + res  # local kriged residual correction
+
+    def score(self, X, y, lat, lon, sample_weight=None):
+        pass
+
