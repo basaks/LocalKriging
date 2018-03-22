@@ -57,11 +57,16 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         if not self.trained:
             raise Exception('Not trained. Train first')
 
+        # self._input_sanity_check(X, lat, lon)
+
         reg_pred = self.regression.predict(X)
         return reg_pred
         # TODO: return std for regression models that support std
 
-        return self._krige_locally(lat, lon, reg_pred)
+        for i, la, lo in enumerate(zip(lat, lon)):
+            reg_pred[i] = self._krige_locally(lat, lon, reg_pred[i])
+
+        return reg_pred
 
     def _krige_locally(self, lat, lon, reg_pred):
         d, ii = self.tree.query([lat, lon], self.num_points)
@@ -74,4 +79,12 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
 
     def score(self, X, y, lat, lon, sample_weight=None):
         pass
+
+    def _input_sanity_check(self, X, lat, lon):
+        if X.shape[0] != len(lat):
+            raise ValueError('X and lat must of same length')
+
+        if X.shape[0] != len(lon):
+            raise ValueError('X and lat must of same length')
+
 
