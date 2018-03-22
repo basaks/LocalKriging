@@ -28,18 +28,20 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         num_points: int
             number of points for the local kriging
         """
-        self.xy = xy
+        self.xy = {k: v for k, v in enumerate(xy)}
         self.regression = regression_model
         self.kriging_model = krige_methods[kriging_model]
         self.variogram_model = variogram_model
         self.num_points = num_points
         self.trained = False
-        self.residual = np.zeros_like(self.xy)
-        self.tree = cKDTree(self.xy)
+        self.residual = {}
+        self.tree = cKDTree(xy)
 
     def fit(self, X, y, *args, **kwargs):
         self.regression.fit(X, y)
-        self.residual = y - self.regression.predict(X)
+        residual = y - self.regression.predict(X)
+        self.residual = {k: v for k, v in enumerate(residual)}
+
         self.trained = True
 
     def predict(self, X, lat, lon, *args, **kwargs):
