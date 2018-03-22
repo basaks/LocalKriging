@@ -15,6 +15,7 @@ from localkriging.model import LocalRegressionKriging
 from localkriging.covariates import gather_covariates
 from localkriging.writer import RasterWriter
 
+DEFAULT_NODATA = 1.0e-20
 
 def load_config(config_file):
     module_name = 'config'
@@ -64,8 +65,7 @@ def main(config_file, output_file):
     profile.update(dtype=rio.float32, count=1, compress='lzw', nodata=1.0e-20)
 
     # mpi compatible writer class instance
-    writer = RasterWriter(output_tif=output_file,
-                          profile=profile)
+    writer = RasterWriter(output_tif=output_file, profile=profile)
 
     # predict and write output geotif
     predict(ds, config, writer, model)
@@ -94,13 +94,21 @@ def predict(ds, config, writer, model, step=10):
                 feats[splitext(basename(c))[0]] = w.flatten()
 
         feats = OrderedDict(sorted(feats.items()))
-        X = np.vstack([v for v in feats.values()]).T
+
+        X = np.ma.vstack([v for v in feats.values()]).T
+
         print('processed row {} using process {}'.format(r, mpiops.rank))
         pred = np.zeros(shape=(1, ds.width))
 
         # this is the local residual kriging step
         for cc in range(ds.width):
             lat, lon = ds.xy(r, cc)
+
+            # TODO: remove this when we have imputation working
+            # just assign nodata when there is nodata in any covariate
+            if X.mask[cc, :].sum() != 0:
+                pred[0, cc] = DEFAULT_NODATA
+                continue
             pred[0, cc] = model.predict(np.atleast_2d(X[cc, :]),
                                         lat, lon)
 
