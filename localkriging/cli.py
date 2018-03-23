@@ -4,6 +4,7 @@
 import sys
 from os.path import basename, splitext
 from collections import OrderedDict
+import pickle
 import numpy as np
 import click
 import importlib.util
@@ -30,20 +31,15 @@ def load_config(config_file):
 @click.command()
 @click.argument('config_file')
 @click.argument('output_file')
-def main(config_file, output_file):
+@click.option('-k', '--kriged_output', type=str,
+              default='residuals.tif',
+              help='path to kriged residuals geotif')
+def main(config_file, output_file, kriged_output):
     config = load_config(config_file)
     targets_all = mpiops.run_once(read_file, config.shapefile)
 
     xy = [(p.x, p.y) for p in targets_all['geometry']]
     targets = targets_all[config.target]
-
-    model = LocalRegressionKriging(
-        xy,
-        regression_model=config.regression_model,
-        kriging_model=config.kriging_method,
-        variogram_model=config.variogram_model,
-        num_points=config.num_points
-    )
 
     # intersect covariates
     features = gather_covariates(xy, config.covariates)
@@ -55,7 +51,16 @@ def main(config_file, output_file):
     # TODO: remove when we have imputation working
     missing_data_rows = X.mask.sum(axis=1) == 0
 
-    model.fit(X[missing_data_rows], y=targets[missing_data_rows])
+    if mpiops.rank == 0:
+        model = LocalRegressionKriging(
+            xy,
+            regression_model=config.regression_model,
+            kriging_model=config.kriging_method,
+            variogram_model=config.variogram_model,
+            num_points=config.num_points
+        )
+        model.fit(X[missing_data_rows], y=targets[missing_data_rows])
+        pickle.dump(model, open('local_kriged_regression.model', 'wb'))
 
     # choose a representative dataset
     ds = rio.open(config.covariates[0])
@@ -69,15 +74,17 @@ def main(config_file, output_file):
     writer = RasterWriter(output_tif=output_file, profile=profile)
 
     # predict and write output geotif
-    predict(ds, config, writer, model)
+    predict(ds, config, writer)
 
     return 0
 
 
-def predict(ds, config, writer, model, step=10):
+def predict(ds, config, writer, step=10):
     feats = {}
     covariates = config.covariates
     process_rows = mpiops.array_split(range(ds.height))
+
+    model = pickle.load(open('local_kriged_regression.model', 'rb'))
 
     # create dummy rows for MPI raster write compatibility
     dummy_rows = 0
