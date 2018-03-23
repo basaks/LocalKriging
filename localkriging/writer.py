@@ -5,17 +5,16 @@ from localkriging import mpiops
 
 class RasterWriter:
 
-    def __init__(self, output_tif, profile):
+    def __init__(self, output_tif, kriged_residuals, profile):
         """
         :param output_tif: str
             output file name
         :param profile: rio.profile.Profile instance
         """
-        self.output = output_tif
-        self.profile = profile
 
         if mpiops.rank == 0:
-            self.dst = rio.open(self.output, 'w', **self.profile)
+            self.dst = rio.open(output_tif, 'w', **profile)
+            self.dst_residuals = rio.open(kriged_residuals, 'w', **profile)
 
     def write(self, data_win_dict):
         if mpiops.rank == 0:
@@ -24,8 +23,12 @@ class RasterWriter:
                     if r != 0 else data_win_dict
                 data = data_win_dict['data']
                 if data is not None:
+                    res = data_win_dict['residuals']
                     window = Window(*data_win_dict['window'])
                     self.dst.write(data.astype(rio.float32),
                                    window=window, indexes=1)
+                    self.dst_residuals.write(res.astype(rio.float32),
+                                             window=window, indexes=1)
+
         else:
             mpiops.comm.send(data_win_dict, dest=0)

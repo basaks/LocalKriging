@@ -62,7 +62,7 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         # self._input_sanity_check(X, lat, lon)
 
         reg_pred = self.regression.predict(X)
-        # return reg_pred
+        # return reg_pred, None
         # TODO: return std for regression models that support std
 
         return self._krige_locally(lat, lon, reg_pred)
@@ -74,7 +74,7 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         zs = [self.residual[i] for i in ii]
         krige_class = self.kriging_model(xs, ys, zs, self.variogram_model)
         res, res_std = krige_class.execute('points', [lat], [lon])
-        return reg_pred + res  # local kriged residual correction
+        return reg_pred + res, res  # local kriged residual correction
 
     def score(self, X, y, lat, lon, sample_weight=None):
         pass

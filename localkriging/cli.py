@@ -31,14 +31,14 @@ def load_config(config_file):
 @click.command()
 @click.argument('config_file')
 @click.argument('output_file')
-@click.option('-k', '--kriged_output', type=str,
-              default='residuals.tif',
+@click.option('-k', '--kriged_residuals', type=str,
+              default='kriged_residuals.tif',
               help='path to kriged residuals geotif')
-def main(config_file, output_file, kriged_output):
+def main(config_file, output_file, kriged_residuals):
     config = load_config(config_file)
     targets_all = mpiops.run_once(read_file, config.shapefile)
 
-    xy = [(p.x, p.y) for p in targets_all['geometry']]
+    xy = np.array([(p.x, p.y) for p in targets_all['geometry']])
     targets = targets_all[config.target]
 
     # intersect covariates
@@ -49,17 +49,17 @@ def main(config_file, output_file, kriged_output):
 
     # ignore all rows with missing data
     # TODO: remove when we have imputation working
-    missing_data_rows = X.mask.sum(axis=1) == 0
+    valid_data_rows = X.mask.sum(axis=1) == 0
 
     if mpiops.rank == 0:
         model = LocalRegressionKriging(
-            xy,
+            xy[valid_data_rows],
             regression_model=config.regression_model,
             kriging_model=config.kriging_method,
             variogram_model=config.variogram_model,
             num_points=config.num_points
         )
-        model.fit(X[missing_data_rows], y=targets[missing_data_rows])
+        model.fit(X[valid_data_rows], y=targets[valid_data_rows])
         pickle.dump(model, open('local_kriged_regression.model', 'wb'))
     mpiops.comm.barrier()
     # choose a representative dataset
@@ -71,7 +71,9 @@ def main(config_file, output_file, kriged_output):
     profile.update(dtype=rio.float32, count=1, compress='lzw', nodata=1.0e-20)
 
     # mpi compatible writer class instance
-    writer = RasterWriter(output_tif=output_file, profile=profile)
+    writer = RasterWriter(output_tif=output_file,
+                          kriged_residuals=kriged_residuals,
+                          profile=profile)
 
     # predict and write output geotif
     predict(ds, config, writer)
@@ -105,8 +107,9 @@ def predict(ds, config, writer, step=10):
 
         X = np.ma.vstack([v for v in feats.values()]).T
 
-        print('processing row {} using process {}'.format(r, mpiops.rank))
+        print('predicting row {} using process {}'.format(r, mpiops.rank))
         pred = np.zeros(shape=(1, ds.width))
+        res = np.zeros(shape=(1, ds.width))
 
         # this is the local residual kriging step
         for cc in range(ds.width):
@@ -115,16 +118,18 @@ def predict(ds, config, writer, step=10):
             # TODO: remove this when we have imputation working
             # just assign nodata when there is nodata in any covariate
             if X.mask[cc, :].sum() != 0:
-                pred[0, cc] = DEFAULT_NODATA
+                pred[0, cc], res = DEFAULT_NODATA, DEFAULT_NODATA
                 continue
-            pred[0, cc] = model.predict(np.atleast_2d(X[cc, :]),
-                                        lat, lon)
+            pred[0, cc], res[0, cc] = model.predict(np.atleast_2d(X[cc, :]),
+                                                    lat, lon)
 
         writer.write({'data': pred.astype(rio.float32),
+                      'residuals': res.astype(rio.float32),
                       'window': (0, r, ds.width, 1)})
 
     for _ in range(dummy_rows):
         writer.write({'data': None,
+                      'residuals': None,
                       'window': None})
 
 
