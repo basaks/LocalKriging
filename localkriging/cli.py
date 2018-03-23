@@ -17,6 +17,7 @@ from localkriging.writer import RasterWriter
 
 DEFAULT_NODATA = 1.0e-20
 
+
 def load_config(config_file):
     module_name = 'config'
     spec = importlib.util.spec_from_file_location(
@@ -31,7 +32,7 @@ def load_config(config_file):
 @click.argument('output_file')
 def main(config_file, output_file):
     config = load_config(config_file)
-    targets_all = read_file(config.shapefile)
+    targets_all = mpiops.run_once(read_file, config.shapefile)
 
     xy = [(p.x, p.y) for p in targets_all['geometry']]
     targets = targets_all[config.target]
@@ -52,9 +53,9 @@ def main(config_file, output_file):
 
     # ignore all rows with missing data
     # TODO: remove when we have imputation working
-    X = X[X.mask.sum(axis=1) == 0]   # remove any rows with anything masked
+    missing_data_rows = X.mask.sum(axis=1) == 0
 
-    model.fit(X, y=targets)
+    model.fit(X[missing_data_rows], y=targets[missing_data_rows])
 
     # choose a representative dataset
     ds = rio.open(config.covariates[0])
@@ -97,7 +98,7 @@ def predict(ds, config, writer, model, step=10):
 
         X = np.ma.vstack([v for v in feats.values()]).T
 
-        print('processed row {} using process {}'.format(r, mpiops.rank))
+        print('processing row {} using process {}'.format(r, mpiops.rank))
         pred = np.zeros(shape=(1, ds.width))
 
         # this is the local residual kriging step

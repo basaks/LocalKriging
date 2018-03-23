@@ -55,6 +55,7 @@ def _process_gather_covariates(xy, covariates):
     # TODO: break this up in partitions for very large rasters
     features = {}
     for c in covariates:
+        print('reading covariate {} in process {}'.format(c, mpiops.rank))
         src = rio.open(c)
         features[splitext(basename(c))[0]] = np.ma.array(
             list(sample_gen(src, xy)))

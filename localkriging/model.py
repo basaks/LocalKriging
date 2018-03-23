@@ -62,13 +62,10 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         # self._input_sanity_check(X, lat, lon)
 
         reg_pred = self.regression.predict(X)
-        return reg_pred
+        # return reg_pred
         # TODO: return std for regression models that support std
 
-        for i, la, lo in enumerate(zip(lat, lon)):
-            reg_pred[i] = self._krige_locally(lat, lon, reg_pred[i])
-
-        return reg_pred
+        return self._krige_locally(lat, lon, reg_pred)
 
     def _krige_locally(self, lat, lon, reg_pred):
         d, ii = self.tree.query([lat, lon], self.num_points)
@@ -88,5 +85,3 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
 
         if X.shape[0] != len(lon):
             raise ValueError('X and lat must of same length')
-
-
