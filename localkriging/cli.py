@@ -61,7 +61,7 @@ def main(config_file, output_file, kriged_output):
         )
         model.fit(X[missing_data_rows], y=targets[missing_data_rows])
         pickle.dump(model, open('local_kriged_regression.model', 'wb'))
-
+    mpiops.comm.barrier()
     # choose a representative dataset
     ds = rio.open(config.covariates[0])
 
