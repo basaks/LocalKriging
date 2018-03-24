@@ -77,7 +77,9 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         return reg_pred + res, res  # local kriged residual correction
 
     def score(self, X, y, lat, lon, sample_weight=None):
-        pass
+        return r2_score(y_true=y,
+                        y_pred=self.predict(X, lat, lon),
+                        sample_weight=sample_weight)
 
     def _input_sanity_check(self, X, lat, lon):
         if X.shape[0] != len(lat):
