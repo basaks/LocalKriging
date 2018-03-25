@@ -5,11 +5,11 @@ target = 'K_ppm_imp_'
 
 # TODO: support inputs based on a list in a file
 covariates = [
-    '/home/sudipta/Documents/GA-cover2/LATITUDE_GRID1.tif',
-    '/home/sudipta/Documents/GA-cover2/LONGITUDE_GRID1.tif',
+    # '/home/sudipta/Documents/GA-cover2/LATITUDE_GRID1.tif',
+    # '/home/sudipta/Documents/GA-cover2/LONGITUDE_GRID1.tif',
     '/home/sudipta/Documents/GA-cover2/Clim_Prescott_LindaGregory.tif',
     '/home/sudipta/Documents/GA-cover2/dem_foc2.tif',
-    # '/home/sudipta/Documents/GA-cover2/gg_clip.tif',
+    '/home/sudipta/Documents/GA-cover2/gg_clip.tif',
     # '/home/sudipta/Documents/GA-cover2/k_15v5.tif',
     # '/home/sudipta/Documents/GA-cover2/modis10_te.tif',
     # '/home/sudipta/Documents/GA-cover2/modis11_te.tif',
@@ -18,6 +18,8 @@ covariates = [
     # '/home/sudipta/Documents/GA-cover2/outcrop_dis2.tif',
 ]
 
+lat = '/home/sudipta/Documents/GA-cover2/LATITUDE_GRID1.tif'
+lon = '/home/sudipta/Documents/GA-cover2/LONGITUDE_GRID1.tif'
 
 regression_model = RandomForestRegressor()
 

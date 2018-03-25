@@ -62,12 +62,20 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         # self._input_sanity_check(X, lat, lon)
 
         reg_pred = self.regression.predict(X)
-        # return reg_pred, None
+        return reg_pred, np.empty_like(reg_pred, dtype=np.float32)
         # TODO: return std for regression models that support std
 
         return self._krige_locally(lat, lon, reg_pred)
 
     def _krige_locally(self, lat, lon, reg_pred):
+        """
+        This is the local residual kriging step.
+
+        :param lat:
+        :param lon:
+        :param reg_pred:
+        :return:
+        """
         d, ii = self.tree.query([lat, lon], self.num_points)
         xs = [self.xy[i][0] for i in ii]
         ys = [self.xy[i][1] for i in ii]

@@ -81,7 +81,7 @@ def main(config_file, output_file, kriged_residuals):
     return 0
 
 
-def predict(ds, config, writer, step=10):
+def predict(ds, config, writer, partitions=10):
     feats = {}
     covariates = config.covariates
     process_rows = mpiops.array_split(range(ds.height))
@@ -89,48 +89,51 @@ def predict(ds, config, writer, step=10):
     model = pickle.load(open('local_kriged_regression.model', 'rb'))
 
     # create dummy rows for MPI raster write compatibility
-    dummy_rows = 0
-    max_process_rows = ds.height // mpiops.size + 1
-    if ds.height % mpiops.size:
-        dummy_rows = max_process_rows - len(process_rows)
+    # dummy_rows = 0
+    # max_process_rows = ds.height // mpiops.size + 1
+    # if ds.height % mpiops.size:
+    #     dummy_rows = max_process_rows - len(process_rows)
 
     # TODO: compute in `step`s for faster (at least) regression prediction
-    for r in process_rows:
+    for r in np.array_split(process_rows, partitions):
+        step = len(r)
         for c in covariates:
             with rio.open(c) as src:
                 # Window(col_off, row_off, width, height)
                 # assume band one for now
-                w = src.read(1, window=Window(0, r, src.width, 1))
+                w = src.read(1, window=Window(0, r[0], src.width, step))
                 feats[splitext(basename(c))[0]] = w.flatten()
 
         feats = OrderedDict(sorted(feats.items()))
 
         X = np.ma.vstack([v for v in feats.values()]).T
 
-        print('predicting row {} using process {}'.format(r, mpiops.rank))
-        pred = np.zeros(shape=(1, ds.width))
-        res = np.zeros(shape=(1, ds.width))
+        print('predicting rows {r0} through {rl} using process {rank}'.format(
+            r0=r[0], rl=r[-1], rank=mpiops.rank))
+        # pred = np.zeros(shape=(step, ds.width))
+        # res = np.zeros(shape=(step, ds.width))
 
-        # this is the local residual kriging step
-        for cc in range(ds.width):
-            lat, lon = ds.xy(r, cc)
+        pred, res = model.predict(X, 0, 0)
 
-            # TODO: remove this when we have imputation working
-            # just assign nodata when there is nodata in any covariate
-            if X.mask[cc, :].sum() != 0:
-                pred[0, cc], res = DEFAULT_NODATA, DEFAULT_NODATA
-                continue
-            pred[0, cc], res[0, cc] = model.predict(np.atleast_2d(X[cc, :]),
-                                                    lat, lon)
+        # for cc in range(ds.width):
+        #     lats, lons = ds.xy(r, cc)
 
-        writer.write({'data': pred.astype(rio.float32),
-                      'residuals': res.astype(rio.float32),
-                      'window': (0, r, ds.width, 1)})
+            # # TODO: remove this when we have imputation working
+            # # just assign nodata when there is nodata in any covariate
+            # if X.mask[cc, :].sum() != 0:
+            #     pred[0, cc], res = DEFAULT_NODATA, DEFAULT_NODATA
+            #     continue
+            # pred[0, cc], res[0, cc] = model.predict(np.atleast_2d(X[cc, :]),
+            #                                         lat, lon)
 
-    for _ in range(dummy_rows):
-        writer.write({'data': None,
-                      'residuals': None,
-                      'window': None})
+        writer.write({'data': pred.reshape((step, -1)).astype(rio.float32),
+                      'residuals': res.reshape((step, -1)).astype(rio.float32),
+                      'window': (0, r[0], ds.width, step)})
+
+    # for _ in range(dummy_rows):
+    #     writer.write({'data': None,
+    #                   'residuals': None,
+    #                   'window': None})
 
 
 if __name__ == "__main__":
