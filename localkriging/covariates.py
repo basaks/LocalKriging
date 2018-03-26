@@ -1,9 +1,12 @@
 from os.path import basename, splitext
 from collections import OrderedDict
+import logging
 import numpy as np
 import rasterio as rio
 from rasterio.windows import Window
 from localkriging import mpiops
+
+log = logging.getLogger(__name__)
 
 
 def _join_dicts(dicts):
@@ -55,7 +58,7 @@ def _process_gather_covariates(xy, covariates):
     # TODO: break this up in partitions for very large rasters
     features = {}
     for c in covariates:
-        print('reading covariate {} in process {}'.format(c, mpiops.rank))
+        log.info('reading covariate {} in process {}'.format(c, mpiops.rank))
         src = rio.open(c)
         features[splitext(basename(c))[0]] = np.ma.array(
             list(sample_gen(src, xy)))

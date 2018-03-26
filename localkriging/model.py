@@ -1,8 +1,10 @@
+import logging
 import numpy as np
 from scipy.spatial import cKDTree
 from pykrige import OrdinaryKriging, UniversalKriging
 from sklearn.base import RegressorMixin, BaseEstimator
 from sklearn.metrics import r2_score
+log = logging.getLogger(__name__)
 
 krige_methods = {'ordinary': OrdinaryKriging,
                  'universal': UniversalKriging}
@@ -41,8 +43,8 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         self.regression.fit(X, y)
         residual = y - self.regression.predict(X)
         self.residual = {k: v for k, v in enumerate(residual)}
-
         self.trained = True
+        log.info('local regression kriging model trained')
 
     def predict(self, X, lats, lons, *args, **kwargs):
         """
@@ -72,6 +74,8 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         res = np.empty_like(lats, dtype=np.float32)
         for i, (lat, lon, pred) in enumerate(zip(lats, lons, reg_pred)):
             kriged_pred[i], res[i] = self._krige_locally(lat, lon, pred)
+            if not i % 10000:
+                log.info('processed {} pixels'.format(i))
         return kriged_pred, res
 
     def _krige_locally(self, lat, lon, reg_pred):

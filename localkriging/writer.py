@@ -1,6 +1,8 @@
+import logging
 import rasterio as rio
 from rasterio.windows import Window
 from localkriging import mpiops
+log = logging.getLogger(__name__)
 
 
 class RasterWriter:
@@ -28,6 +30,7 @@ class RasterWriter:
                                window=window, indexes=1)
                 self.dst_residuals.write(res.astype(rio.float32),
                                          window=window, indexes=1)
+                log.info('Finished writing partition')
 
         else:
             mpiops.comm.send(data_win_dict, dest=0)

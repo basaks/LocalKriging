@@ -3,6 +3,7 @@
 """Console script for localkriging."""
 import sys
 from os.path import basename, splitext
+import logging
 from collections import OrderedDict
 import pickle
 import numpy as np
@@ -15,8 +16,10 @@ from localkriging import mpiops
 from localkriging.model import LocalRegressionKriging
 from localkriging.covariates import gather_covariates
 from localkriging.writer import RasterWriter
+from localkriging import lklog
 
 DEFAULT_NODATA = 1.0e-20
+log = logging.getLogger(__name__)
 
 
 def load_config(config_file):
@@ -29,6 +32,9 @@ def load_config(config_file):
 
 
 @click.command()
+@click.option('-v', '--verbosity',
+              type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR']),
+              default='INFO', help='Level of logging')
 @click.argument('config_file')
 @click.argument('output_file')
 @click.option('-k', '--kriged_residuals', type=str,
@@ -37,9 +43,11 @@ def load_config(config_file):
 @click.option('-p', '--partitions', type=int, default=1,
               help='Number of partitions used in prediction. A higher value '
                    'requires less memory.')
-def main(config_file, output_file, kriged_residuals, partitions):
+def main(config_file, output_file, kriged_residuals, partitions, verbosity):
+    """Commandline options and logging setup"""
+    lklog.configure(verbosity)
 
-    print('Will use partitions={} during prediction. Use more '
+    log.info('Will use partitions={} during prediction. Use more '
           'partitions if limited memory is available.'.format(partitions))
 
     config = load_config(config_file)
@@ -97,7 +105,7 @@ def predict(ds, config, writer, partitions=10):
 
     # TODO: compute in `step`s for faster (at least) regression prediction
     for p, r in enumerate(np.array_split(process_rows, partitions)):
-        print('Processing partition {}'.format(p))
+        log.info('Processing partition {}'.format(p))
         step = len(r)
         for c in covariates:
             with rio.open(c) as src:
@@ -111,8 +119,9 @@ def predict(ds, config, writer, partitions=10):
         # stack for prediction
         X = np.ma.vstack([v for v in feats.values()]).T
 
-        print('predicting rows {r0} through {rl} using process {rank}'.format(
-            r0=r[0], rl=r[-1], rank=mpiops.rank))
+        log.info('predicting rows {r0} through {rl} '
+                 'using process {rank}'.format(r0=r[0], rl=r[-1],
+                                               rank=mpiops.rank))
 
         # vectors of rows and cols we need lats and lons for
         rs = np.repeat(r, ds.width)
