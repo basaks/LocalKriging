@@ -34,7 +34,14 @@ def load_config(config_file):
 @click.option('-k', '--kriged_residuals', type=str,
               default='kriged_residuals.tif',
               help='path to kriged residuals geotif')
-def main(config_file, output_file, kriged_residuals):
+@click.option('-p', '--partitions', type=int, default=1,
+              help='Number of partitions used in prediction. A higher value '
+                   'requires less memory.')
+def main(config_file, output_file, kriged_residuals, partitions):
+
+    print('Will use partitions={} during prediction. Use more '
+          'partitions if limited memory is available.'.format(partitions))
+
     config = load_config(config_file)
     targets_all = mpiops.run_once(read_file, config.shapefile)
 
@@ -76,7 +83,7 @@ def main(config_file, output_file, kriged_residuals):
                           profile=profile)
 
     # predict and write output geotif
-    predict(ds, config, writer)
+    predict(ds, config, writer, partitions)
 
     return 0
 
@@ -88,14 +95,9 @@ def predict(ds, config, writer, partitions=10):
 
     model = pickle.load(open('local_kriged_regression.model', 'rb'))
 
-    # create dummy rows for MPI raster write compatibility
-    # dummy_rows = 0
-    # max_process_rows = ds.height // mpiops.size + 1
-    # if ds.height % mpiops.size:
-    #     dummy_rows = max_process_rows - len(process_rows)
-
     # TODO: compute in `step`s for faster (at least) regression prediction
-    for r in np.array_split(process_rows, partitions):
+    for p, r in enumerate(np.array_split(process_rows, partitions)):
+        print('Processing partition {}'.format(p))
         step = len(r)
         for c in covariates:
             with rio.open(c) as src:
@@ -106,34 +108,27 @@ def predict(ds, config, writer, partitions=10):
 
         feats = OrderedDict(sorted(feats.items()))
 
+        # stack for prediction
         X = np.ma.vstack([v for v in feats.values()]).T
 
         print('predicting rows {r0} through {rl} using process {rank}'.format(
             r0=r[0], rl=r[-1], rank=mpiops.rank))
-        # pred = np.zeros(shape=(step, ds.width))
-        # res = np.zeros(shape=(step, ds.width))
 
-        pred, res = model.predict(X, 0, 0)
-
-        # for cc in range(ds.width):
-        #     lats, lons = ds.xy(r, cc)
-
-            # # TODO: remove this when we have imputation working
-            # # just assign nodata when there is nodata in any covariate
-            # if X.mask[cc, :].sum() != 0:
-            #     pred[0, cc], res = DEFAULT_NODATA, DEFAULT_NODATA
-            #     continue
-            # pred[0, cc], res[0, cc] = model.predict(np.atleast_2d(X[cc, :]),
-            #                                         lat, lon)
+        # vectors of rows and cols we need lats and lons for
+        rs = np.repeat(r, ds.width)
+        cs = np.repeat(np.atleast_2d(np.array(range(ds.width))),
+                       step, axis=0).flatten()
+        lats, lons = ds.xy(rs, cs)
+        # TODO: remove this when we have imputation working
+        # just assign nodata when there is nodata in any covariate
+        no_data_mask = X.mask.sum(axis=1) != 0
+        pred, res = model.predict(X, lats, lons)
+        pred[no_data_mask] = DEFAULT_NODATA
+        res[no_data_mask] = DEFAULT_NODATA
 
         writer.write({'data': pred.reshape((step, -1)).astype(rio.float32),
                       'residuals': res.reshape((step, -1)).astype(rio.float32),
                       'window': (0, r[0], ds.width, step)})
-
-    # for _ in range(dummy_rows):
-    #     writer.write({'data': None,
-    #                   'residuals': None,
-    #                   'window': None})
 
 
 if __name__ == "__main__":

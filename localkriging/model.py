@@ -44,16 +44,16 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
 
         self.trained = True
 
-    def predict(self, X, lat, lon, *args, **kwargs):
+    def predict(self, X, lats, lons, *args, **kwargs):
         """
         Parameters
         ----------
         X: np.array
-            features of the regression model
-        lat: np.array
-            latitude np.array
-        lon: np.array
-            longitude np.array
+            features of the regression model, 2d numpy array
+        lats: np.array
+            latitude 1d np.array
+        lons: np.array
+            longitude 1d np.array
 
         """
         if not self.trained:
@@ -62,10 +62,17 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         # self._input_sanity_check(X, lat, lon)
 
         reg_pred = self.regression.predict(X)
-        return reg_pred, np.empty_like(reg_pred, dtype=np.float32)
+        # return reg_pred, np.empty_like(reg_pred, dtype=np.float32)
         # TODO: return std for regression models that support std
 
-        return self._krige_locally(lat, lon, reg_pred)
+        return self._krige_locally_batch(lats, lons, reg_pred)
+
+    def _krige_locally_batch(self, lats, lons, reg_pred):
+        kriged_pred = np.empty_like(lats, dtype=np.float32)
+        res = np.empty_like(lats, dtype=np.float32)
+        for i, (lat, lon, pred) in enumerate(zip(lats, lons, reg_pred)):
+            kriged_pred[i], res[i] = self._krige_locally(lat, lon, pred)
+        return kriged_pred, res
 
     def _krige_locally(self, lat, lon, reg_pred):
         """
@@ -84,9 +91,9 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         res, res_std = krige_class.execute('points', [lat], [lon])
         return reg_pred + res, res  # local kriged residual correction
 
-    def score(self, X, y, lat, lon, sample_weight=None):
+    def score(self, X, y, lats, lons, sample_weight=None):
         return r2_score(y_true=y,
-                        y_pred=self.predict(X, lat, lon),
+                        y_pred=self.predict(X, lats, lons),
                         sample_weight=sample_weight)
 
     def _input_sanity_check(self, X, lat, lon):
