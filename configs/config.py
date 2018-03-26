@@ -1,25 +1,29 @@
+import os
+import logging
 from sklearn.ensemble import RandomForestRegressor
+log = logging.getLogger(__name__)
+
 
 shapefile = '/home/sudipta/Documents/GA-cover2/geochem_sites.shp'
 target = 'K_ppm_imp_'
 
+log.info('Using shapefile {}'.format(os.path.basename(shapefile)))
+log.info('Using target {}'.format(target))
+
+covarites_dir = '/home/sudipta/Documents/GA-cover2/'
+
 # TODO: support inputs based on a list in a file
 covariates = [
-    # '/home/sudipta/Documents/GA-cover2/LATITUDE_GRID1.tif',
-    # '/home/sudipta/Documents/GA-cover2/LONGITUDE_GRID1.tif',
-    '/home/sudipta/Documents/GA-cover2/Clim_Prescott_LindaGregory.tif',
-    '/home/sudipta/Documents/GA-cover2/dem_foc2.tif',
-    '/home/sudipta/Documents/GA-cover2/gg_clip.tif',
-    # '/home/sudipta/Documents/GA-cover2/k_15v5.tif',
-    # '/home/sudipta/Documents/GA-cover2/modis10_te.tif',
-    # '/home/sudipta/Documents/GA-cover2/modis11_te.tif',
-    # '/home/sudipta/Documents/GA-cover2/mrvbf_9.tif',
-    # '/home/sudipta/Documents/GA-cover2/MvrtpLL.tif',
-    # '/home/sudipta/Documents/GA-cover2/outcrop_dis2.tif',
+    # 'LATITUDE_GRID1.tif',
+    # 'LONGITUDE_GRID1.tif',
+    'Clim_Prescott_LindaGregory.tif',
+    'gg_clip.tif',
+    'modis10_te.tif',
+    'mrvbf_9.tif',
+    'outcrop_dis2.tif',
 ]
 
-lat = '/home/sudipta/Documents/GA-cover2/LATITUDE_GRID1.tif'
-lon = '/home/sudipta/Documents/GA-cover2/LONGITUDE_GRID1.tif'
+covariates = [os.path.join(covarites_dir, c) for c in covariates]
 
 regression_model = RandomForestRegressor()
 
@@ -34,7 +38,7 @@ kriging_method = 'ordinary'
 
 # variogram options are (linear, power, gaussian, spherical, exponential,
 # hole-effect)
-variogram_model = 'linear'
+variogram_model = 'gaussian'
 
 
 # some checks
@@ -45,6 +49,7 @@ def _check_kriging_method():
 
 def _check_covariates_not_repeated():
     pass
+
 
 _check_kriging_method()
 _check_covariates_not_repeated()
