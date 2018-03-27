@@ -80,7 +80,6 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
             resid, last_set, krige = self._krige_locally(
                 lat, lon, last_set, krige)
             res[i] = resid
-            # reg_pred becomes locally kriged regression prediction after this
             if not i % 10000:
                 log.info('processed {} pixels'.format(i))
 

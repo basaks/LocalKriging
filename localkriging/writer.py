@@ -11,6 +11,8 @@ class RasterWriter:
         """
         :param output_tif: str
             output file name
+        :param kriged_residuals: str
+            kriged residual output file name
         :param profile: rio.profile.Profile instance
         """
 
@@ -19,6 +21,10 @@ class RasterWriter:
             self.dst_residuals = rio.open(kriged_residuals, 'w', **profile)
 
     def write(self, data_win_dict):
+        """
+        :param data_win_dict: dict
+            dictionary of data, residual and window
+        """
         if mpiops.rank == 0:
             for r in range(mpiops.size):
                 data_win_dict = mpiops.comm.recv(source=r) \
@@ -30,7 +36,7 @@ class RasterWriter:
                                window=window, indexes=1)
                 self.dst_residuals.write(res.astype(rio.float32),
                                          window=window, indexes=1)
-                log.info('Finished writing partition')
+                log.info('Finished writing partition in process {}'.format(r))
 
         else:
             mpiops.comm.send(data_win_dict, dest=0)

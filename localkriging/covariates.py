@@ -22,8 +22,9 @@ def gather_covariates(xy, covariates):
 
     Parameters
     ----------
-    xy: list
-        list of (x, y) points for which  covariate values are required
+    xy: np.array
+        ndarray of dim (n, 2) points (x, y) for which  covariate values are
+        required
     covariates: list
         list of covariates to be intersected
 

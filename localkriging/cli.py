@@ -18,7 +18,7 @@ from localkriging.covariates import gather_covariates
 from localkriging.writer import RasterWriter
 from localkriging import lklog
 
-DEFAULT_NODATA = 1.0e-20
+DEFAULT_NODATA = -99999
 log = logging.getLogger(__name__)
 
 
