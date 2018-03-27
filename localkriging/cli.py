@@ -103,9 +103,10 @@ def predict(ds, config, writer, partitions=10):
 
     model = pickle.load(open('local_kriged_regression.model', 'rb'))
 
-    # TODO: compute in `step`s for faster (at least) regression prediction
+    # idea: instead of rows, using tiles may be more efficient due to
+    # variogram computation in the LocalRegressionKriging class
     for p, r in enumerate(np.array_split(process_rows, partitions)):
-        log.info('Processing partition {}'.format(p))
+        log.info('Processing partition {}'.format(p+1))
         step = len(r)
         for c in covariates:
             with rio.open(c) as src:

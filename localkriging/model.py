@@ -51,34 +51,42 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         Parameters
         ----------
         X: np.array
-            features of the regression model, 2d numpy array
+            features of the regression model, numpy array of dim(n, nfeatures)
         lats: np.array
-            latitude 1d np.array
+            latitude 1d np.array same length as X
         lons: np.array
-            longitude 1d np.array
+            longitude 1d np.array same length as X
 
         """
         if not self.trained:
             raise Exception('Not trained. Train first')
 
-        # self._input_sanity_check(X, lat, lon)
+        self._input_sanity_check(X, lats, lons)
 
         reg_pred = self.regression.predict(X)
         # return reg_pred, np.empty_like(reg_pred, dtype=np.float32)
         # TODO: return std for regression models that support std
+        res = self._krige_locally_batch(lats, lons)
+        return (reg_pred + res).astype(np.float32), res
 
-        return self._krige_locally_batch(lats, lons, reg_pred)
-
-    def _krige_locally_batch(self, lats, lons, reg_pred):
-        kriged_pred = np.empty_like(lats, dtype=np.float32)
+    def _krige_locally_batch(self, lats, lons):
         res = np.empty_like(lats, dtype=np.float32)
-        for i, (lat, lon, pred) in enumerate(zip(lats, lons, reg_pred)):
-            kriged_pred[i], res[i] = self._krige_locally(lat, lon, pred)
+
+        # just create dummy initial set
+        last_set = set(range(self.num_points))
+        krige = None
+
+        for i, (lat, lon) in enumerate(zip(lats, lons)):
+            resid, last_set, krige = self._krige_locally(
+                lat, lon, last_set, krige)
+            res[i] = resid
+            # reg_pred becomes locally kriged regression prediction after this
             if not i % 10000:
                 log.info('processed {} pixels'.format(i))
-        return kriged_pred, res
 
-    def _krige_locally(self, lat, lon, reg_pred):
+        return res
+
+    def _krige_locally(self, lat, lon, last_set, krige):
         """
         This is the local residual kriging step.
 
@@ -88,21 +96,29 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         :return:
         """
         d, ii = self.tree.query([lat, lon], self.num_points)
-        xs = [self.xy[i][0] for i in ii]
-        ys = [self.xy[i][1] for i in ii]
-        zs = [self.residual[i] for i in ii]
-        krige_class = self.kriging_model(xs, ys, zs, self.variogram_model)
-        res, res_std = krige_class.execute('points', [lat], [lon])
-        return reg_pred + res, res  # local kriged residual correction
+
+        # create a set of points with the closest points index
+        points = set(ii)
+
+        # only compute kriging model when previous points set does not match
+        # making the computation potentially 10x more efficient
+        if points != last_set:
+            xs = [self.xy[i][0] for i in ii]
+            ys = [self.xy[i][1] for i in ii]
+            zs = [self.residual[i] for i in ii]
+            krige = self.kriging_model(xs, ys, zs, self.variogram_model)
+            last_set = points
+        res, res_std = krige.execute('points', [lat], [lon])
+        return res, last_set, krige  # local kriged residual correction
 
     def score(self, X, y, lats, lons, sample_weight=None):
         return r2_score(y_true=y,
                         y_pred=self.predict(X, lats, lons),
                         sample_weight=sample_weight)
 
-    def _input_sanity_check(self, X, lat, lon):
-        if X.shape[0] != len(lat):
-            raise ValueError('X and lat must of same length')
+    def _input_sanity_check(self, X, lats, lons):
+        if X.shape[0] != len(lats):
+            raise ValueError('X and lats must of same length')
 
-        if X.shape[0] != len(lon):
-            raise ValueError('X and lat must of same length')
+        if X.shape[0] != len(lons):
+            raise ValueError('X and lats must of same length')

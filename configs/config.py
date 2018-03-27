@@ -38,7 +38,7 @@ kriging_method = 'ordinary'
 
 # variogram options are (linear, power, gaussian, spherical, exponential,
 # hole-effect)
-variogram_model = 'gaussian'
+variogram_model = 'linear'
 
 
 # some checks
