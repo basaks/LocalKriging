@@ -39,33 +39,27 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         self.xy_dict = {k: v for k, v in enumerate(xy)}
 
     def fit(self, X, y, *args, **kwargs):
-        self.regression.fit(X, y)
-        residual = y - self.regression.predict(X)
+        self.regression.fit(X[:, 2:], y)
+        residual = y - self.regression.predict(X[:, 2:])
         self.residual = {k: v for k, v in enumerate(residual)}
         self.trained = True
         log.info('local regression kriging model trained')
 
-    def predict(self, X, lats, lons, *args, **kwargs):
+    def predict(self, X, *args, **kwargs):
         """
         Parameters
         ----------
         X: np.array
-            features of the regression model, numpy array of dim(n, nfeatures)
-        lats: np.array
-            latitude 1d np.array same length as X
-        lons: np.array
-            longitude 1d np.array same length as X
-
+            features of the regression model
+            numpy array of dim(n, 2+ nfeatures), +2 becuase of lat and lon
         """
         if not self.trained:
             raise Exception('Not trained. Train first')
 
-        self._input_sanity_check(X, lats, lons)
-
-        reg_pred = self.regression.predict(X)
+        reg_pred = self.regression.predict(X[:, 2:])
         # return reg_pred, np.empty_like(reg_pred, dtype=np.float32)
         # TODO: return std for regression models that support std
-        res = self._krige_locally_batch(lats, lons)
+        res = self._krige_locally_batch(X[:, 0], X[:, 1])
         return (reg_pred + res).astype(np.float32), res
 
     def _krige_locally_batch(self, lats, lons):
@@ -111,12 +105,5 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
 
     def score(self, X, y, sample_weight=None):
         return r2_score(y_true=y,
-                        y_pred=self.predict(X, self.xy[:, 0], self.xy[:, 1]),
+                        y_pred=self.predict(X),
                         sample_weight=sample_weight)
-
-    def _input_sanity_check(self, X, lats, lons):
-        if X.shape[0] != len(lats):
-            raise ValueError('X and lats must of same length')
-
-        if X.shape[0] != len(lons):
-            raise ValueError('X and lats must of same length')

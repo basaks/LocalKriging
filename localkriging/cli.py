@@ -65,7 +65,7 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
     features = gather_covariates(xy, config.covariates)
 
     # stack for learning
-    X = np.ma.hstack([v for v in features.values()])
+    X = np.ma.hstack([xy] + [v for v in features.values()])
 
     # ignore all rows with missing data
     # TODO: remove when we have imputation working
@@ -138,6 +138,8 @@ def predict(ds, config, writer, partitions=10):
         cs = np.repeat(np.atleast_2d(np.array(range(ds.width))),
                        step, axis=0).flatten()
         lats, lons = ds.xy(rs, cs)
+
+        X = np.ma.hstack([lats, lons, X])  # stack with lats and lons
         # TODO: remove this when we have imputation working
         # just assign nodata when there is nodata in any covariate
         no_data_mask = X.mask.sum(axis=1) != 0
