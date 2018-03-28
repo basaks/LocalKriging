@@ -45,6 +45,8 @@ kriging_params = {
     'weight': True,
 }
 
+cross_val = True
+
 
 # some checks
 def _check_kriging_method():
@@ -55,6 +57,9 @@ def _check_kriging_method():
 def _check_covariates_not_repeated():
     pass
 
+
+if 'variogram_model' not in kriging_params:
+    raise ValueError('Variogram model must be provided')
 
 _check_kriging_method()
 _check_covariates_not_repeated()

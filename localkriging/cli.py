@@ -9,9 +9,11 @@ import pickle
 import numpy as np
 import click
 import importlib.util
+from sklearn.model_selection import cross_val_score
 from geopandas import read_file
 import rasterio as rio
 from rasterio.windows import Window
+from pykrige import OrdinaryKriging, UniversalKriging
 from localkriging import mpiops
 from localkriging.model import LocalRegressionKriging
 from localkriging.covariates import gather_covariates
@@ -20,6 +22,9 @@ from localkriging import lklog
 
 DEFAULT_NODATA = -99999
 log = logging.getLogger(__name__)
+
+krige_methods = {'ordinary': OrdinaryKriging,
+                 'universal': UniversalKriging}
 
 
 def load_config(config_file):
@@ -69,11 +74,14 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
     if mpiops.rank == 0:
         model = LocalRegressionKriging(
             xy[valid_data_rows],
-            regression_model=config.regression_model,
-            kriging_model=config.kriging_method,
+            regression=config.regression_model,
+            kriging_model=krige_methods[config.kriging_method],
             num_points=config.num_points,
             **config.kriging_params
         )
+        if config.cross_val:
+            print(cross_val_score(model, X[valid_data_rows], y=targets[
+                valid_data_rows], cv=5), ' :cross val score')
         model.fit(X[valid_data_rows], y=targets[valid_data_rows])
         pickle.dump(model, open('local_kriged_regression.model', 'wb'))
     mpiops.comm.barrier()

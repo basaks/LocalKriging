@@ -1,45 +1,42 @@
 import logging
 import numpy as np
 from scipy.spatial import cKDTree
-from pykrige import OrdinaryKriging, UniversalKriging
 from sklearn.base import RegressorMixin, BaseEstimator
 from sklearn.metrics import r2_score
 log = logging.getLogger(__name__)
-
-krige_methods = {'ordinary': OrdinaryKriging,
-                 'universal': UniversalKriging}
 
 
 class LocalRegressionKriging(RegressorMixin, BaseEstimator):
     def __init__(self,
                  xy,
-                 regression_model,
+                 regression,
                  kriging_model,
                  num_points,
                  **kwargs):
         """
         Parameters
         ----------
-        xy: list
-            list of (x, y) points for which  covariate values are required
+        xy: np.ndarray
+            array of dim [n, 2] of (x, y) points for which  covariate values
+            available (observation coordinates)
         regression_model: sklearn compatible regression class
-        kriging_model: str
+        kriging_model: pykrige kriging class instance
             should be 'ordinary' or 'universal'
         variogram_model: str
             pykrige compatible variogram model
         num_points: int
             number of points for the local kriging
         """
-        self.xy = {k: v for k, v in enumerate(xy)}
-        self.regression = regression_model
-        self.kriging_model = krige_methods[kriging_model]
-        if 'variogram_model' not in kwargs:
-            raise ValueError('Variogram model must be provided')
+        # self.xy = {k: v for k, v in enumerate(xy)}
+        self.xy = xy
+        self.regression = regression
+        self.kriging_model = kriging_model
         self.kwargs = kwargs
         self.num_points = num_points
         self.trained = False
         self.residual = {}
         self.tree = cKDTree(xy)
+        self.xy_dict = {k: v for k, v in enumerate(xy)}
 
     def fit(self, X, y, *args, **kwargs):
         self.regression.fit(X, y)
@@ -104,17 +101,17 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         # only compute kriging model when previous points set does not match
         # making the computation potentially 10x more efficient
         if points != last_set:
-            xs = [self.xy[i][0] for i in ii]
-            ys = [self.xy[i][1] for i in ii]
+            xs = [self.xy_dict[i][0] for i in ii]
+            ys = [self.xy_dict[i][1] for i in ii]
             zs = [self.residual[i] for i in ii]
             krige = self.kriging_model(xs, ys, zs, **self.kwargs)
             last_set = points
         res, res_std = krige.execute('points', [lat], [lon])
         return res, last_set, krige  # local kriged residual correction
 
-    def score(self, X, y, lats, lons, sample_weight=None):
+    def score(self, X, y, sample_weight=None):
         return r2_score(y_true=y,
-                        y_pred=self.predict(X, lats, lons),
+                        y_pred=self.predict(X, self.xy[:, 0], self.xy[:, 1]),
                         sample_weight=sample_weight)
 
     def _input_sanity_check(self, X, lats, lons):
