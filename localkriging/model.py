@@ -15,8 +15,8 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
                  xy,
                  regression_model,
                  kriging_model,
-                 variogram_model,
-                 num_points):
+                 num_points,
+                 **kwargs):
         """
         Parameters
         ----------
@@ -33,7 +33,9 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         self.xy = {k: v for k, v in enumerate(xy)}
         self.regression = regression_model
         self.kriging_model = krige_methods[kriging_model]
-        self.variogram_model = variogram_model
+        if 'variogram_model' not in kwargs:
+            raise ValueError('Variogram model must be provided')
+        self.kwargs = kwargs
         self.num_points = num_points
         self.trained = False
         self.residual = {}
@@ -105,7 +107,7 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
             xs = [self.xy[i][0] for i in ii]
             ys = [self.xy[i][1] for i in ii]
             zs = [self.residual[i] for i in ii]
-            krige = self.kriging_model(xs, ys, zs, self.variogram_model)
+            krige = self.kriging_model(xs, ys, zs, **self.kwargs)
             last_set = points
         res, res_std = krige.execute('points', [lat], [lon])
         return res, last_set, krige  # local kriged residual correction

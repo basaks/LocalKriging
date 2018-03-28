@@ -48,7 +48,7 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
     lklog.configure(verbosity)
 
     log.info('Will use partitions={} during prediction. Use more '
-          'partitions if limited memory is available.'.format(partitions))
+             'partitions if limited memory is available.'.format(partitions))
 
     config = load_config(config_file)
     targets_all = mpiops.run_once(read_file, config.shapefile)
@@ -71,8 +71,8 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
             xy[valid_data_rows],
             regression_model=config.regression_model,
             kriging_model=config.kriging_method,
-            variogram_model=config.variogram_model,
-            num_points=config.num_points
+            num_points=config.num_points,
+            **config.kriging_params
         )
         model.fit(X[valid_data_rows], y=targets[valid_data_rows])
         pickle.dump(model, open('local_kriged_regression.model', 'wb'))
@@ -83,7 +83,8 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
     # rasterio profile object
     profile = ds.profile
     # assume 1 band rasters
-    profile.update(dtype=rio.float32, count=1, compress='lzw', nodata=1.0e-20)
+    profile.update(dtype=rio.float32, count=1, compress='lzw',
+                   nodata=DEFAULT_NODATA)
 
     # mpi compatible writer class instance
     writer = RasterWriter(output_tif=output_file,
