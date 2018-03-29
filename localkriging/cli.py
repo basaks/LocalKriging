@@ -80,8 +80,12 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
             **config.kriging_params
         )
         if config.cross_val:
-            print(cross_val_score(model, X[valid_data_rows], y=targets[
-                valid_data_rows], cv=5), ' :cross val score')
+            log.info('Cross validation r2 score: {}'.format(np.mean(
+                cross_val_score(model,
+                                X[valid_data_rows],
+                                y=targets[valid_data_rows],
+                                cv=5))))
+
         model.fit(X[valid_data_rows], y=targets[valid_data_rows])
         pickle.dump(model, open('local_kriged_regression.model', 'wb'))
     mpiops.comm.barrier()
@@ -138,8 +142,9 @@ def predict(ds, config, writer, partitions=10):
         cs = np.repeat(np.atleast_2d(np.array(range(ds.width))),
                        step, axis=0).flatten()
         lats, lons = ds.xy(rs, cs)
+        # stack with lats and lons
+        X = np.ma.hstack([np.atleast_2d(lats).T, np.atleast_2d(lons).T, X])
 
-        X = np.ma.hstack([lats, lons, X])  # stack with lats and lons
         # TODO: remove this when we have imputation working
         # just assign nodata when there is nodata in any covariate
         no_data_mask = X.mask.sum(axis=1) != 0

@@ -35,13 +35,15 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         self.num_points = num_points
         self.trained = False
         self.residual = {}
-        self.tree = cKDTree(xy)
-        self.xy_dict = {k: v for k, v in enumerate(xy)}
+        self.tree = None
+        self.xy_dict = {}
 
     def fit(self, X, y, *args, **kwargs):
         self.regression.fit(X[:, 2:], y)
         residual = y - self.regression.predict(X[:, 2:])
+        self.tree = cKDTree(X[:, :2])
         self.residual = {k: v for k, v in enumerate(residual)}
+        self.xy_dict = {k: v for k, v in enumerate(X[:, :2])}
         self.trained = True
         log.info('local regression kriging model trained')
 
@@ -105,5 +107,5 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
 
     def score(self, X, y, sample_weight=None):
         return r2_score(y_true=y,
-                        y_pred=self.predict(X),
+                        y_pred=self.predict(X)[0],
                         sample_weight=sample_weight)
