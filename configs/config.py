@@ -46,6 +46,7 @@ kriging_params = {
 }
 
 cross_val = True
+cross_val_folds = 5
 
 
 # some checks

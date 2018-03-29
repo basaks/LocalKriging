@@ -84,7 +84,7 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
                 cross_val_score(model,
                                 X[valid_data_rows],
                                 y=targets[valid_data_rows],
-                                cv=5))))
+                                cv=config.cross_val_folds))))
 
         model.fit(X[valid_data_rows], y=targets[valid_data_rows])
         pickle.dump(model, open('local_kriged_regression.model', 'wb'))
