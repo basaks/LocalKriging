@@ -6,6 +6,7 @@ from os.path import basename, splitext
 import logging
 from collections import OrderedDict
 import pickle
+import csv
 import numpy as np
 import click
 import importlib.util
@@ -89,6 +90,7 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
 
         model.fit(X[valid_data_rows], y=targets[valid_data_rows])
         pickle.dump(model, open('local_kriged_regression.model', 'wb'))
+        _output_residuals_and_predictions(model, X)
     mpiops.comm.barrier()
     # choose a representative dataset
     ds = rio.open(config.covariates[0])
@@ -108,6 +110,19 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
     predict(ds, config, writer, partitions)
 
     return 0
+
+
+def _output_residuals_and_predictions(model, X):
+    """
+    wirte out residuals and predictions at the target locations
+    """
+    with open('target_results.csv', 'w', newline='') as csvfile:
+        csvwriter = csv.writer(csvfile, delimiter=',')
+        pred = model.regression.predict(X[:, 2:])
+        csvwriter.writerow(['lon', 'lat', 'residual', 'prediction'])
+        for xy, r, p in zip(model.xy, model.residual, pred):
+            csvwriter.writerow([xy[0], xy[1], r, p])
+    log.info('Wrote residuals and predictions at target')
 
 
 def predict(ds, config, writer, partitions=10):

@@ -1,5 +1,4 @@
 import logging
-import csv
 import numpy as np
 from scipy.spatial import cKDTree
 from sklearn.base import RegressorMixin, BaseEstimator
@@ -44,17 +43,9 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         residual = y - self.regression.predict(X[:, 2:])
         self.tree = cKDTree(X[:, :2])
         self.residual = {k: v for k, v in enumerate(residual)}
-        self._output_residuals()
         self.xy_dict = {k: v for k, v in enumerate(X[:, :2])}
         self.trained = True
         log.info('local regression kriging model trained')
-
-    def _output_residuals(self):
-        with open('residuals.csv', 'w', newline='') as csvfile:
-            csvwriter = csv.writer(csvfile, delimiter=',')
-            for xy, r in zip(self.xy, self.residual):
-                csvwriter.writerow([xy[0], xy[1], r])
-        log.info('Wrote residuals csv file')
 
     def predict(self, X, *args, **kwargs):
         """
