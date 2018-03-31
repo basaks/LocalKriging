@@ -13,7 +13,7 @@ from sklearn.model_selection import cross_val_score
 from geopandas import read_file
 import rasterio as rio
 from rasterio.windows import Window
-from pykrige import OrdinaryKriging, UniversalKriging
+from pykrige import OrdinaryKriging, UniversalKriging, RegressionKriging
 from localkriging import mpiops
 from localkriging.model import LocalRegressionKriging
 from localkriging.covariates import gather_covariates
@@ -24,7 +24,8 @@ DEFAULT_NODATA = -99999
 log = logging.getLogger(__name__)
 
 krige_methods = {'ordinary': OrdinaryKriging,
-                 'universal': UniversalKriging}
+                 'universal': UniversalKriging,
+                 'regression': RegressionKriging}
 
 
 def load_config(config_file):
