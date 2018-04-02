@@ -118,10 +118,12 @@ def _output_residuals_and_predictions(model, X):
     """
     with open('target_results.csv', 'w', newline='') as csvfile:
         csvwriter = csv.writer(csvfile, delimiter=',')
-        pred = model.regression.predict(X[:, 2:])
-        csvwriter.writerow(['lon', 'lat', 'residual', 'prediction'])
-        for xy, r, p in zip(model.xy, model.residual, pred):
-            csvwriter.writerow([xy[0], xy[1], r, p])
+        regresstion_pred = model.regression.predict(X[:, 2:])
+        pred, res = model.predict(X)
+        csvwriter.writerow(['lon', 'lat', 'residual', 'lrk_prediction',
+                            'regression_pred'])
+        for xy, r, p, reg in zip(model.xy, res, pred, regresstion_pred):
+            csvwriter.writerow([xy[0], xy[1], r, p, reg])
     log.info('Wrote residuals and predictions at target')
 
 
