@@ -90,7 +90,8 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
 
         model.fit(X[valid_data_rows], y=targets[valid_data_rows])
         pickle.dump(model, open('local_kriged_regression.model', 'wb'))
-        _output_residuals_and_predictions(model, X)
+        _output_residuals_and_predictions(model, X,
+            targets_all[[config.target, 'geometry']])
     mpiops.comm.barrier()
     # choose a representative dataset
     ds = rio.open(config.covariates[0])
@@ -112,7 +113,7 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
     return 0
 
 
-def _output_residuals_and_predictions(model, X):
+def _output_residuals_and_predictions(model, X, gdf):
     """
     wirte out residuals and predictions at the target locations
     """
@@ -125,6 +126,12 @@ def _output_residuals_and_predictions(model, X):
         for xy, r, p, reg in zip(model.xy, res, pred, regresstion_pred):
             csvwriter.writerow([xy[0], xy[1], r, p, reg])
     log.info('Wrote residuals and predictions at target')
+
+    gdf['residual'] = res
+    gdf['lrk_prediction'] = pred
+    gdf['regression_pred'] = regresstion_pred
+    gdf.to_file('output_shapefile.shp')
+    log.info('Wrote residuals and predictions at target in shapefile')
 
 
 def predict(ds, config, writer, partitions=10):
