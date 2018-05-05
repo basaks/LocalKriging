@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 from scipy.spatial import cKDTree
+from scipy.spatial.distance import pdist, squareform
 from sklearn.base import RegressorMixin, BaseEstimator
 from sklearn.metrics import r2_score
 log = logging.getLogger(__name__)
@@ -37,6 +38,11 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         self.residual = {}
         self.tree = None
         self.xy_dict = {}
+        # self.max_distance = self.max_distance()
+
+    def max_distance(self):
+        D = squareform(pdist(self.xy))
+        return np.nanmax(D)
 
     def fit(self, X, y, *args, **kwargs):
         self.regression.fit(X[:, 2:], y)
