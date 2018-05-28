@@ -15,6 +15,10 @@ from geopandas import read_file
 import rasterio as rio
 from rasterio.windows import Window
 from pykrige import OrdinaryKriging, UniversalKriging, RegressionKriging
+from gwr.gwr import GWR
+from gwr.sel_bw import Sel_BW
+from pysal.contrib.glm.family import Gaussian
+
 from localkriging import mpiops
 from localkriging.model import LocalRegressionKriging
 from localkriging.covariates import gather_covariates
@@ -26,7 +30,8 @@ log = logging.getLogger(__name__)
 
 krige_methods = {'ordinary': OrdinaryKriging,
                  'universal': UniversalKriging,
-                 'regression': RegressionKriging}
+                 'regression': RegressionKriging,
+                 'gwr': GWR}
 
 
 def load_config(config_file):
@@ -81,7 +86,9 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
             num_points=config.num_points,
             **config.kriging_params
         )
+
         if config.cross_val:
+            # TODO: write x-val score to a file
             log.info('Cross validation r2 score: {}'.format(np.mean(
                 cross_val_score(model,
                                 X[valid_data_rows],
@@ -92,6 +99,7 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
         pickle.dump(model, open('local_kriged_regression.model', 'wb'))
         _output_residuals_and_predictions(model, X,
             targets_all[[config.target, 'geometry']])
+
     mpiops.comm.barrier()
     # choose a representative dataset
     ds = rio.open(config.covariates[0])
@@ -110,7 +118,7 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
     # predict and write output geotif
     predict(ds, config, writer, partitions)
 
-    return 0
+    log.info('Finished prediction')
 
 
 def _output_residuals_and_predictions(model, X, gdf):
