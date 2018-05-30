@@ -38,7 +38,7 @@ model_maps = {
     'ols': LinearRegression
     }
 
-regression_model = 'randomforest'
+regression_model = 'gwr'
 
     # (xy[valid_data_rows],
     #         targets[valid_data_rows].values.reshape(-1, 1),

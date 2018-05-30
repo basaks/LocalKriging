@@ -43,6 +43,29 @@ def load_config(config_file):
     return config
 
 
+class GWRMod:
+
+    def __init__(self, coords,
+                bw,
+                family,
+                fixed,
+                kernel):
+        self.coords = coords
+        self.bw = bw
+        self.fixed = fixed
+        self.family = family
+        self.kernel = kernel
+
+    def fit(self, X, y):
+        GWR(y=y,
+            X=X,
+            coords=self.coords,
+            bw=self.bw,
+            family=self.family,
+            fixed=self.fixed,
+            kernel=self.kernel).fit()
+
+
 @click.command()
 @click.option('-v', '--verbosity',
               type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR']),
@@ -79,25 +102,39 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
     valid_data_rows = X.mask.sum(axis=1) == 0
 
     if mpiops.rank == 0:
-        regression_model = config.model_maps[config.regression_model]
+        if config.regression_model == 'gwr':
+            bw = Sel_BW(xy[valid_data_rows],
+                        targets[valid_data_rows].values.reshape(-1, 1),
+                        X[valid_data_rows].data,
+                        kernel='bisquare', fixed=False)
+            bw = bw.search(search='golden_section', criterion='AICc')
+            regression_model = GWRMod(
+                coords=xy[valid_data_rows],
+                bw=bw,
+                family=Gaussian(),
+                fixed=False,
+                kernel='bisquare')
+        else:
+            regression_model = config.model_maps[config.regression_model]()
 
         model = LocalRegressionKriging(
-            xy[valid_data_rows],
-            regression=regression_model(),
+            xy[valid_data_rows].data,
+            regression=regression_model,
             kriging_model=krige_methods[config.kriging_method],
             num_points=config.num_points,
             **config.kriging_params
         )
 
-        if config.cross_val:
-            # TODO: write x-val score to a file
-            log.info('Cross validation r2 score: {}'.format(np.mean(
-                cross_val_score(model,
-                                X[valid_data_rows],
-                                y=targets[valid_data_rows],
-                                cv=config.cross_val_folds))))
+        # if config.cross_val:
+        #     # TODO: write x-val score to a file
+        #     log.info('Cross validation r2 score: {}'.format(np.mean(
+        #         cross_val_score(model,
+        #                         X[valid_data_rows].data,
+        #                         y=targets[valid_data_rows],
+        #                         cv=config.cross_val_folds))))
 
-        model.fit(X[valid_data_rows], y=targets[valid_data_rows])
+        model.fit(X[valid_data_rows].data, y=targets[
+            valid_data_rows].values.reshape(-1,1))
         pickle.dump(model,
             open('local_kriged_regression_{}.model'.format(
                 config.regression_model), 'wb'))
