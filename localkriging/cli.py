@@ -1,29 +1,27 @@
 # -*- coding: utf-8 -*-
 
 """Console script for localkriging."""
-import sys
-from os.path import basename, splitext
-import logging
-from collections import OrderedDict
-import pickle
 import csv
-import numpy as np
-import click
 import importlib.util
-from sklearn.model_selection import cross_val_score
-from geopandas import read_file
-import rasterio as rio
-from rasterio.windows import Window
-from pykrige import OrdinaryKriging, UniversalKriging, RegressionKriging
-from gwr.gwr import GWR
-from gwr.sel_bw import Sel_BW
-from pysal.contrib.glm.family import Gaussian
+import logging
+import sys
+from collections import OrderedDict
+from os.path import basename, splitext
 
-from localkriging import mpiops
-from localkriging.model import LocalRegressionKriging
-from localkriging.covariates import gather_covariates
-from localkriging.writer import RasterWriter
+import click
+import numpy as np
+import rasterio as rio
+from geopandas import read_file
+from gwr.gwr import GWR
+from pykrige import OrdinaryKriging, UniversalKriging, RegressionKriging
+from pysal.contrib.glm.family import Gaussian
+from rasterio.windows import Window
+
 from localkriging import lklog
+from localkriging import mpiops
+from localkriging.covariates import gather_covariates
+from localkriging.model import LocalRegressionKriging, GWRMod
+from localkriging.writer import RasterWriter
 
 DEFAULT_NODATA = -99999
 log = logging.getLogger(__name__)
@@ -41,29 +39,6 @@ def load_config(config_file):
     config = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config)
     return config
-
-
-class GWRMod:
-
-    def __init__(self, coords,
-                bw,
-                family,
-                fixed,
-                kernel):
-        self.coords = coords
-        self.bw = bw
-        self.fixed = fixed
-        self.family = family
-        self.kernel = kernel
-
-    def fit(self, X, y):
-        GWR(y=y,
-            X=X,
-            coords=self.coords,
-            bw=self.bw,
-            family=self.family,
-            fixed=self.fixed,
-            kernel=self.kernel).fit()
 
 
 @click.command()
@@ -103,14 +78,9 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
 
     if mpiops.rank == 0:
         if config.regression_model == 'gwr':
-            bw = Sel_BW(xy[valid_data_rows],
-                        targets[valid_data_rows].values.reshape(-1, 1),
-                        X[valid_data_rows].data,
-                        kernel='bisquare', fixed=False)
-            bw = bw.search(search='golden_section', criterion='AICc')
+
             regression_model = GWRMod(
                 coords=xy[valid_data_rows],
-                bw=bw,
                 family=Gaussian(),
                 fixed=False,
                 kernel='bisquare')
@@ -133,13 +103,14 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
         #                         y=targets[valid_data_rows],
         #                         cv=config.cross_val_folds))))
 
-        model.fit(X[valid_data_rows].data, y=targets[
-            valid_data_rows].values.reshape(-1,1))
-        pickle.dump(model,
-            open('local_kriged_regression_{}.model'.format(
-                config.regression_model), 'wb'))
-        _output_residuals_and_predictions(model, X,
-            targets_all[[config.target, 'geometry']])
+        model.fit(X=X[valid_data_rows].data, y=targets[
+            valid_data_rows])
+        # pickle.dump(model,
+        #     open('local_kriged_regression_{}.model'.format(
+        #         config.regression_model), 'wb'))
+        # _output_residuals_and_predictions(model, X[valid_data_rows],
+        #     targets_all[[config.target, 'geometry']])
+
 
     mpiops.comm.barrier()
     # choose a representative dataset
@@ -157,7 +128,7 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
                           profile=profile)
 
     # predict and write output geotif
-    predict(ds, config, writer, partitions)
+    predict(ds, config, writer, model, partitions)
 
     log.info('Finished prediction')
 
@@ -168,7 +139,7 @@ def _output_residuals_and_predictions(model, X, gdf):
     """
     with open('target_results.csv', 'w', newline='') as csvfile:
         csvwriter = csv.writer(csvfile, delimiter=',')
-        regresstion_pred = model.regression.predict(X[:, 2:])
+        regresstion_pred = model.regression.predict(X)
         pred, res = model.predict(X)
         csvwriter.writerow(['lon', 'lat', 'residual', 'lrk_pred',
                             'reg_pred'])
@@ -183,13 +154,13 @@ def _output_residuals_and_predictions(model, X, gdf):
     log.info('Wrote residuals and predictions at target in shapefile')
 
 
-def predict(ds, config, writer, partitions=10):
+def predict(ds, config, writer, model, partitions=10):
     feats = {}
     covariates = config.covariates
     process_rows = mpiops.array_split(range(ds.height))
 
-    model = pickle.load(open('local_kriged_regression_{}.model'.format(
-        config.regression_model), 'rb'))
+    # model = pickle.load(open('local_kriged_regression_{}.model'.format(
+    #     config.regression_model), 'rb'))
 
     # idea: instead of rows, using tiles may be more efficient due to
     # variogram computation in the LocalRegressionKriging class

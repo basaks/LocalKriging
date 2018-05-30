@@ -1,9 +1,14 @@
 import logging
 import numpy as np
+import pickle
+
+from gwr.gwr import GWR
+from gwr.sel_bw import Sel_BW
 from scipy.spatial import cKDTree
 from scipy.spatial.distance import pdist, squareform
 from sklearn.base import RegressorMixin, BaseEstimator
 from sklearn.metrics import r2_score
+
 log = logging.getLogger(__name__)
 
 
@@ -46,11 +51,13 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
 
     def fit(self, X, y, *args, **kwargs):
         self.regression.fit(X[:, 2:], y)
-        residual = y - self.regression.predict(X[:, 2:])
+        reg_pred = self.regression.predict(X)
+        residual = y - reg_pred
         self.tree = cKDTree(X[:, :2])
         self.residual = {k: v for k, v in enumerate(residual)}
         self.xy_dict = {k: v for k, v in enumerate(X[:, :2])}
         self.trained = True
+        # pickle.dump(self.regression, open('regression_model.pk', 'wb'))
         log.info('local regression kriging model trained')
 
     def predict(self, X, *args, **kwargs):
@@ -63,8 +70,8 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         """
         if not self.trained:
             raise Exception('Not trained. Train first')
-
-        reg_pred = self.regression.predict(X[:, 2:])
+        # self.regression = pickle.load(open('regression_model.pk', 'rb'))
+        reg_pred = self.regression.predict(X)
         # return reg_pred, np.empty_like(reg_pred, dtype=np.float32)
         # TODO: return std for regression models that support std
         res = self._krige_locally_batch(X[:, 0], X[:, 1])
@@ -115,3 +122,47 @@ class LocalRegressionKriging(RegressorMixin, BaseEstimator):
         return r2_score(y_true=y,
                         y_pred=self.predict(X)[0],
                         sample_weight=sample_weight)
+
+
+class GWRMod:
+
+    def __init__(self, coords,
+                family,
+                fixed,
+                kernel):
+
+        self.coords = coords
+        self.fixed = fixed
+        self.family = family
+        self.kernel = kernel
+        self.gwr = None
+
+    def fit(self, X, y):
+
+        y = y.values.reshape(-1, 1)
+
+        if isinstance(X, np.ma.MaskedArray):
+            X = np.ma.getdata(X)
+
+        if self.gwr is None:  # not trained
+            bw = Sel_BW(self.coords,
+                        y,
+                        X,
+                        kernel='bisquare', fixed=False)
+            bw = bw.search(search='golden_section', criterion='AICc')
+            self.gwr = GWR(y=y,
+                           X=X,
+                           coords=self.coords,
+                           bw=bw,
+                           family=self.family,
+                           fixed=self.fixed,
+                           kernel=self.kernel)
+        self.gwr.fit()
+        log.info('Trained GWR model')
+
+    def predict(self, X):
+        if self.gwr is None:  # need to train
+            raise AssertionError("Model not trained. Train first")
+        else:
+            return self.gwr.predict(points=X[:, :2],
+                                    P=X[:, 2:]).predictions.flatten()
