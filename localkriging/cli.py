@@ -15,6 +15,10 @@ from geopandas import read_file
 import rasterio as rio
 from rasterio.windows import Window
 from pykrige import OrdinaryKriging, UniversalKriging, RegressionKriging
+from gwr.gwr import GWR
+from gwr.sel_bw import Sel_BW
+from pysal.contrib.glm.family import Gaussian
+
 from localkriging import mpiops
 from localkriging.model import LocalRegressionKriging
 from localkriging.covariates import gather_covariates
@@ -26,7 +30,8 @@ log = logging.getLogger(__name__)
 
 krige_methods = {'ordinary': OrdinaryKriging,
                  'universal': UniversalKriging,
-                 'regression': RegressionKriging}
+                 'regression': RegressionKriging,
+                 'gwr': GWR}
 
 
 def load_config(config_file):
@@ -74,14 +79,18 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
     valid_data_rows = X.mask.sum(axis=1) == 0
 
     if mpiops.rank == 0:
+        regression_model = config.model_maps[config.regression_model]
+
         model = LocalRegressionKriging(
             xy[valid_data_rows],
-            regression=config.regression_model,
+            regression=regression_model(),
             kriging_model=krige_methods[config.kriging_method],
             num_points=config.num_points,
             **config.kriging_params
         )
+
         if config.cross_val:
+            # TODO: write x-val score to a file
             log.info('Cross validation r2 score: {}'.format(np.mean(
                 cross_val_score(model,
                                 X[valid_data_rows],
@@ -89,9 +98,12 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
                                 cv=config.cross_val_folds))))
 
         model.fit(X[valid_data_rows], y=targets[valid_data_rows])
-        pickle.dump(model, open('local_kriged_regression.model', 'wb'))
+        pickle.dump(model,
+            open('local_kriged_regression_{}.model'.format(
+                config.regression_model), 'wb'))
         _output_residuals_and_predictions(model, X,
             targets_all[[config.target, 'geometry']])
+
     mpiops.comm.barrier()
     # choose a representative dataset
     ds = rio.open(config.covariates[0])
@@ -110,7 +122,7 @@ def main(config_file, output_file, kriged_residuals, partitions, verbosity):
     # predict and write output geotif
     predict(ds, config, writer, partitions)
 
-    return 0
+    log.info('Finished prediction')
 
 
 def _output_residuals_and_predictions(model, X, gdf):
@@ -121,8 +133,8 @@ def _output_residuals_and_predictions(model, X, gdf):
         csvwriter = csv.writer(csvfile, delimiter=',')
         regresstion_pred = model.regression.predict(X[:, 2:])
         pred, res = model.predict(X)
-        csvwriter.writerow(['lon', 'lat', 'residual', 'lrk_prediction',
-                            'regression_pred'])
+        csvwriter.writerow(['lon', 'lat', 'residual', 'lrk_pred',
+                            'reg_pred'])
         for xy, r, p, reg in zip(model.xy, res, pred, regresstion_pred):
             csvwriter.writerow([xy[0], xy[1], r, p, reg])
     log.info('Wrote residuals and predictions at target')
@@ -139,7 +151,8 @@ def predict(ds, config, writer, partitions=10):
     covariates = config.covariates
     process_rows = mpiops.array_split(range(ds.height))
 
-    model = pickle.load(open('local_kriged_regression.model', 'rb'))
+    model = pickle.load(open('local_kriged_regression_{}.model'.format(
+        config.regression_model), 'rb'))
 
     # idea: instead of rows, using tiles may be more efficient due to
     # variogram computation in the LocalRegressionKriging class
